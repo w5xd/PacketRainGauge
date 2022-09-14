@@ -19,8 +19,6 @@
 #include <avr/sleep.h>
 #include <avr/interrupt.h>
 #include <avr/power.h>
-#include <RG-Si7210.h>
-#include <RG-Tmp175.h>
 
 // SparkFun's part numbers are:
 // 915MHz:  https://www.sparkfun.com/products/13909
@@ -130,7 +128,148 @@ namespace {
     unsigned long TimeOfWakeup;
     unsigned SleepLoopTimerCount = 30; // approx R1 * C1 seconds per Count (= 100seconds)
 
+    class TMP175 {
+    public:
+        TMP175(byte addr) : SlaveAddress(addr)
+        {}
+        float readTempC()
+        {
+            Wire.beginTransmission(SlaveAddress);
+            writePointerRegister(CONFIGURATION_REG);
+            // R1 without R0 means 10 bit conversion (1/4 degree C) in 55msec
+            // OS means one-shot
+            // SD means shut down immediately after the one-shot conversion
+            uint8_t config = OS | SD | R1; 
+            Wire.write(config);
+            Wire.endTransmission();
+            delay(60); // let temperature ADC settle--depends on R0/R1
+
+            Wire.beginTransmission(SlaveAddress);
+            writePointerRegister(TEMPERATURE_REG);
+            Wire.endTransmission();
+
+            int16_t tempCtimes16 = 0;
+            static const uint8_t READ_TEMPERATURE_BYTE_COUNT = 2;
+            Wire.requestFrom(SlaveAddress,READ_TEMPERATURE_BYTE_COUNT); 
+            for (int i = 0; i < READ_TEMPERATURE_BYTE_COUNT; i++)
+            {
+                if (Wire.available())
+                {
+                    unsigned char v = Wire.read();
+                    tempCtimes16 <<= 8;
+                    tempCtimes16 |= v;
+                }
+                else
+                    return -99.0f;
+            }
+            return static_cast<float>(tempCtimes16) * Scale;
+        }
+        void setup()
+        {
+            Wire.beginTransmission(SlaveAddress); 
+            writePointerRegister(CONFIGURATION_REG);
+            byte config = SD; // set shutdown mode to minimize battery drain
+            Wire.write(config);
+            Wire.endTransmission();
+        }
+    private:
+        const uint8_t SlaveAddress;
+        enum Pointer_t { TEMPERATURE_REG, CONFIGURATION_REG, T_LOW_REG, T_HIGH_REG };
+        enum Configuration_t { SD = 1, TM = 1 << 1, POL = 1 << 2, 
+            F0 = 1 << 3, F1 = 1 << 4, 
+            R0 = 1 << 5, R1 = 1 << 6, OS = 1 << 7 };
+        void writePointerRegister(Pointer_t pointerReg)
+        {Wire.write(static_cast<byte>(pointerReg));}
+
+        static const float Scale;
+    };
+    const float TMP175::Scale = 1 / 16.f; // One count equals 1/16 degree C.
+
     TMP175 tmp175(0b1001000); //0b1001000 per TMP175 docs, is I2C address with all addressing pins low.
+
+    class Si7210 {
+    public:
+        Si7210(uint8_t addr) : SlaveAddress(addr)
+        {}
+
+        void setup()
+        {
+            wakeup();
+
+            Wire.beginTransmission(SlaveAddress);
+            Wire.write(0xC0);
+            Wire.endTransmission(false);
+            Wire.requestFrom(SlaveAddress, static_cast<uint8_t>(1));
+            while (Wire.available())
+                Wire.read();
+        }
+
+        void wakeup()
+        {
+            Wire.requestFrom(SlaveAddress, static_cast<uint8_t>(1));
+            while (Wire.available())
+                Wire.read();
+            Wire.beginTransmission(SlaveAddress);
+            Wire.write(0xC5);
+            Wire.write(1); // set auto-increment bit
+            Wire.endTransmission();
+        }
+
+        void sleep()
+        {
+            static const char SLEEP_REGISTER_ADDRESS = 0xC4;
+            static const char SLEEP_BIT = 1;
+
+            Wire.beginTransmission(SlaveAddress);
+            Wire.write(SLEEP_REGISTER_ADDRESS);
+            Wire.write(SLEEP_BIT);
+            Wire.endTransmission();
+        }
+
+        int16_t readMagField()
+        {   // chip can read �20.47 mT 
+            while (Wire.available())
+                Wire.read();
+            static const char FIELD_REGISTER_ADDRESS = 0xC1;
+            Wire.beginTransmission(SlaveAddress);
+            Wire.write(FIELD_REGISTER_ADDRESS);
+            Wire.endTransmission(false);
+            Wire.requestFrom(SlaveAddress, static_cast<uint8_t>(2));
+            if (Wire.available() >= 2)
+            {
+                uint8_t dspsigm = Wire.read();
+                uint8_t dspsigl = Wire.read();
+                dspsigm &= 0x7Fu; // top bit is "fresh"
+                return (dspsigm << 8u | dspsigl) - 0x4000;
+            }
+            return 0x8000; // not a possible result
+        }
+
+        uint8_t toggleOutputSense()
+        {
+            while (Wire.available())
+                Wire.read();
+            static const char SWOP_REGISTER_ADDRESS = 0xC6;
+            static const unsigned char sw_low4field_BIT = 0x80;
+            Wire.beginTransmission(SlaveAddress);
+            Wire.write(SWOP_REGISTER_ADDRESS);
+            Wire.endTransmission(false);
+            Wire.requestFrom(SlaveAddress, static_cast<uint8_t>(1));
+            if (Wire.available())
+            {
+                uint8_t current = Wire.read();
+                current ^= sw_low4field_BIT; // toggle the sw_low4field bit
+                Wire.beginTransmission(SlaveAddress);
+                Wire.write(SWOP_REGISTER_ADDRESS);
+                Wire.write(current);
+                Wire.endTransmission();
+                return current & 0x7F;
+            }
+            return 0xff;
+        }
+    private:
+        const uint8_t SlaveAddress;
+    };
 
     Si7210 si7210(0x33);
 }
@@ -205,16 +344,7 @@ void setup()
 
     Wire.begin();
     tmp175.setup();
-    auto swop = si7210.setup();
-
-    si7210.one();
-    if (digitalRead(ROCKER_INPUT_PIN) == LOW)
-    {
-        si7210.toggleOutputSense();
-        delay(10);
-        Serial.println("Magnet close on startup.");
-    }
-
+    si7210.setup();
 }
 
 /* Power management:
@@ -254,24 +384,15 @@ namespace {
 
 void loop()
 {
-    static const int POLL_MAG_FIELD_MSEC = 300;
-    static bool TransmittedSinceSleep = false;
     unsigned long now = millis();
-    bool wakedByRocker = false;
+    static bool wakedByRocker = false;
+    static uint8_t sw_op;
 
-    static unsigned long LastPolledMagField;
-    if (now - LastPolledMagField >= POLL_MAG_FIELD_MSEC)
-    {
-        si7210.one();
-        LastPolledMagField = now;
-    }
-
-    if (wakedByRocker = digitalRead(ROCKER_INPUT_PIN) == LOW)
+    if (!wakedByRocker && digitalRead(ROCKER_INPUT_PIN) == LOW)
     { /* I only have one job under this funnel, and I'm going to do it.*/
-        si7210.toggleOutputSense(); // do this only once per wakeup
-        delay(1); // give ROCKER_INPUT_PIN time to respond
+        wakedByRocker = true;
+        sw_op = si7210.toggleOutputSense(); // do this only once per wakeup
         TimeOfWakeup = now; // extend sleep timer
-        TransmittedSinceSleep = false; // allow another transmission
     }
 
 #if defined(USE_SERIAL)
@@ -303,7 +424,7 @@ void loop()
             if (processCommand(sendbuffer))
             {
                 Serial.print(sendbuffer);
-                Serial.println(" command accepted for rain gauge");
+                Serial.println(" command accepted for thermometer");
             }
             else if (radioConfiguration.ApplyCommand(sendbuffer))
             {
@@ -360,6 +481,7 @@ void loop()
     }
 #endif
 
+    static bool TransmittedSinceSleep = false;
     if (!TransmittedSinceSleep)
     {
         if (wakedByRocker || (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC))
@@ -376,33 +498,31 @@ void loop()
             ** history is telling. Failing cells have a pattern.*/
             pinMode(BATTERY_PIN, INPUT); // turn off battery drain
 #endif
-            si7210.one();
+
             auto magField = si7210.readMagField();
 
             // read temperature data
-            auto temperature = tmp175.readTempCx16();
+            float temperature = tmp175.readTempC();
 
             char sign = '+';
-            if (temperature < 0) {
+            static char buf[64];
+            if (temperature < 0.f) {
                 temperature = -temperature;
                 sign = '-';
             }
             else if (temperature == 0.f)
                 sign = ' ';
 
-            auto whole = temperature >> 4;
-            auto frac = temperature & 0xF;
-            frac *= 100;
-            frac >>= 4;
+            int whole = (int)temperature;
 
-            static char buf[64];
-            sprintf(buf, "C:%u, B:%d, T:%c%d.%02d, RG: %d F: %d",
+            sprintf(buf, "RG:%d C:%u, B:%d, T:%c%d.%02d F:%7d DP:0x%x",
+                (int)(wakedByRocker ? 1 : 0), 
                 sampleCount++,
                 batt,
                 sign, whole,
-                frac,
-                (int)(wakedByRocker ? 1 : 0),
-                magField
+                (int)(100.f * (temperature - whole),
+                magField,
+                (int)sw_op)
             );
 #if defined(USE_SERIAL)
             Serial.println(buf);
@@ -416,6 +536,7 @@ void loop()
 
     if (now - TimeOfWakeup > ListenAfterTransmitMsec)
     {
+        wakedByRocker = false;
         TransmittedSinceSleep = false;
         SleepTilNextInterrupt();
         TimeOfWakeup = millis();
@@ -480,14 +601,6 @@ namespace {
             sleep_disable();
             sei();
             count += 1;
-            /* this while loop does not break early when the mag sensor is the cause
-            ** of the interrupt. But it also turns out it does not wait for the RC
-            ** discharge, either. The RC_RLY_INTERRUPT_PIN, in the case of the mag sensor
-            ** being the cause, does not go inactive when the TIMER_RC_CHARGE_PIN dosido 
-            ** happens above. The result is that this loop runs through the "count" 
-            ** as fast as it can get around this sleep_enable() / sleep_disable().
-            ** Might make more sense to "if (digitalRead(ROCKER_INPUT_PIN) == LOW) break;"
-            ** but it works as-is. */
         }
 
 #else
@@ -509,6 +622,7 @@ namespace {
         radio.SPIon();
 #endif
         si7210.wakeup();
+
         return count;
     }
 
