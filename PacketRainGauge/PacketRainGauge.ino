@@ -469,6 +469,8 @@ namespace {
             digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
             delay(10); // Charge the 1uF
             pinMode(TIMER_RC_CHARGE_PIN, INPUT);
+            if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+                break;
             cli();
             power_timer0_disable(); // timer0 powered down again
             attachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN), sleepPinInterrupt, LOW);
@@ -480,14 +482,6 @@ namespace {
             sleep_disable();
             sei();
             count += 1;
-            /* this while loop does not break early when the mag sensor is the cause
-            ** of the interrupt. But it also turns out it does not wait for the RC
-            ** discharge, either. The RC_RLY_INTERRUPT_PIN, in the case of the mag sensor
-            ** being the cause, does not go inactive when the TIMER_RC_CHARGE_PIN dosido 
-            ** happens above. The result is that this loop runs through the "count" 
-            ** as fast as it can get around this sleep_enable() / sleep_disable().
-            ** Might make more sense to "if (digitalRead(ROCKER_INPUT_PIN) == LOW) break;"
-            ** but it works as-is. */
         }
 
 #else
