@@ -25,22 +25,22 @@ by.
 
 The RGR126N design sensed the passing of the magnet using a reed relay. Such a relay has ferro magnetic 
 contacts that close as
-the magnet is in proximity. The relay was positioned for closest approach 
+the magnet is in proximity. The original relay sensor was positioned for closest approach 
 as the rocker passed top dead center
-in both directions, so the rocker was moving relatively quickly.  
+in both directions, which means the rocker was moving relatively quickly as the realy sensed it.  
 
 The
 Si7210 sensor used in this design senses at 5 times per second which is a little slow to
 reliably detect fast passage of the magnet through top dead center. However, the Si7210 can
 easily be programmed to separately detect the arrival and the departure of the magnet from
-its proximity. This design positions its sensor in alignment with the rocker at its resting position with one
+its proximity. Therefore, this design instead positions its sensor in alignment with the rocker at its resting position with one
 cup down&mdash;the left one in the photo above. Its Arduino
 sketch is programmed to separately report the arrival and departure of the rocker, sending a packet for
-each. The new magnet is mounted in the same position as the old one. Its not quite the same mass: about 0.5g as
+each. The new magnet is mounted in the same fixture on the rocker as the old magnet. Its not quite the same mass: about 0.5g as
 opposed to 0.3g on my scale, so a calibration check is in order before putting it into service.
 The result is this design sends packets at the same time as the old one. 
 
-A K&J Magnetics B422 magnet matches the original magnet's dimensions.
+
  The original magnet cannot be retained because the reed relay required the magnet's
 pole axis orientation be parallel to the axis of the reed relay. That pole
 orientation is not appropriate for the hall effect sensor on this
@@ -49,6 +49,8 @@ The sensor manufacturer publishes this discussion about how the
 magnet and sensor geometry are designed: 
 <a href='https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf'>
 https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf<a>
+A K&J Magnetics B422 magnet matches the original magnet's dimensions, and is manufactured so that its
+pole axis can be oriented to penetrate the Si7210.
 
 The original
 battery compartment is retained after removing the PCB that shares the
@@ -127,7 +129,8 @@ solder them one pin at a time.
 Its circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
 
 The Si7210 is mounted to the <i>bottom</i> of the PCB. This is the only part on the bottom.
-I used an SMD over to mount it (and nothing else with it.) Then flipped the board over
+I used an SMD oven to mount it (and nothing else in the oven with it.) After cooling it of,
+then flipped the board over
 and used the oven again to mount all the top side SMD parts. The RFM69 is supposed to be
 oven-safe, but I have destroyed at least one (maybe not because of the oven?) and its
 easy enough to hand solder its 100 thou solder pads.
