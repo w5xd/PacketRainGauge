@@ -277,35 +277,38 @@ void loop()
         {
             delay(1); // give ROCKER_INPUT_PIN time to respond
             if (digitalRead(ROCKER_INPUT_PIN) != LOW)
-                break;
+                break; // normally this happens with j == 0
         }
         TimeOfWakeup = now; // extend sleep timer
     }
 
     static const int WAIT_FOR_ROCKER_BOUNCE_MSEC = 100;
     if (rainActivated)
-        delay(WAIT_FOR_ROCKER_BOUNCE_MSEC);
+        delay(WAIT_FOR_ROCKER_BOUNCE_MSEC); // on found ROCKER_INPUT, delay to let rocker rest
 
     si7210.one();
     Si7210::MagField_t magField = si7210.readMagField();
 
     if (rainActivated)
     {
-        Si7210::MagField_t magFieldDiff = magField - prevSentField;
-        if (magFieldDiff < 0)
-            magFieldDiff = -magFieldDiff;
-        Si7210::MagField_t limit = Si7210::getMaxAmplitude() / 2;
-#if 0 // defined(USE_SERIAL)
-        Serial.print("Rocker now=");
-        Serial.print(magField);
-        Serial.print(" prev=");
-        Serial.print(prevSentField);
-        Serial.print(" diff=");
-        Serial.println(magFieldDiff);
-#endif
-        if (magFieldDiff < limit)
-            rainActivated = false; // don't transmit consectutive RG if magField changes less than this
+        const Si7210::MagField_t OneQuarter = Si7210::getMaxAmplitude() / 4;
+        const Si7210::MagField_t ThreeQuarters = 3 * OneQuarter;
+        Si7210::MagField_t amplitude = magField;
+        if (amplitude < 0)
+            amplitude = -amplitude;
+        if (amplitude >= OneQuarter && amplitude <= ThreeQuarters)
+            rainActivated = false; // only report amplitudes in the bottom quarter and top quarter of the sensor range
+        else
+        {
+            Si7210::MagField_t magFieldDiff = magField - prevSentField;
+            if (magFieldDiff < 0)
+                magFieldDiff = -magFieldDiff;
+            if (magFieldDiff <= OneQuarter)
+                rainActivated = false;// only report when the sensor switches between top and bottom quarter 
+        }
     }
+    if (rainActivated)
+        prevSentField = magField;
 
 #if defined(USE_SERIAL)
     // Set up a "buffer" for characters that we'll send:
@@ -433,8 +436,6 @@ void loop()
             static_cast<int>(rainActivated ? 1 : 0),
             static_cast<int>(magField)
         );
-        if (rainActivated)
-            prevSentField = magField;
 #if defined(USE_SERIAL)
         Serial.println(buf);
 #endif
