@@ -133,6 +133,8 @@ namespace {
     TMP175 tmp175(0b1001000); //0b1001000 per TMP175 docs, is I2C address with all addressing pins low.
 
     Si7210 si7210(0x33);
+    Si7210::MagField_t prevSentField;
+    const int MAX_WAIT_FOR_TOGGLE_MSEC = 100;
 }
 
 void setup()
@@ -211,10 +213,11 @@ void setup()
     if (digitalRead(ROCKER_INPUT_PIN) == LOW)
     {
         si7210.toggleOutputSense();
-        delay(10);
+        delay(MAX_WAIT_FOR_TOGGLE_MSEC);
         Serial.println("Magnet close on startup.");
     }
-
+    delay(1);
+    prevSentField = si7210.readMagField();
 }
 
 /* Power management:
@@ -232,6 +235,8 @@ namespace {
     bool processCommand(const char *pCmd)
     {
         static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
+        static const char VER[] = "VER";
+
         if (strncmp(pCmd, SET_LOOPCOUNT, sizeof(SET_LOOPCOUNT) - 1) == 0)
         {
             pCmd = RadioConfiguration::SkipWhiteSpace(
@@ -248,30 +253,58 @@ namespace {
                 }
             }
         }
+        else if (strncmp(pCmd, VER, sizeof(VER) - 1) == 0)
+        {
+#if defined(USE_SERIAL)
+            Serial.println("Revision 03");
+#endif
+        }
+
         return false;
     }
 }
 
 void loop()
 {
-    static const int POLL_MAG_FIELD_MSEC = 300;
     static bool TransmittedSinceSleep = false;
     unsigned long now = millis();
-    bool wakedByRocker = false;
-
-    static unsigned long LastPolledMagField;
-    if (now - LastPolledMagField >= POLL_MAG_FIELD_MSEC)
-    {
-        si7210.one();
-        LastPolledMagField = now;
-    }
-
-    if (wakedByRocker = digitalRead(ROCKER_INPUT_PIN) == LOW)
+    bool rainActivated = (digitalRead(ROCKER_INPUT_PIN) == LOW);
+    
+    if (rainActivated)
     { /* I only have one job under this funnel, and I'm going to do it.*/
         si7210.toggleOutputSense(); // do this only once per wakeup
-        delay(1); // give ROCKER_INPUT_PIN time to respond
+        for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
+        {
+            delay(1); // give ROCKER_INPUT_PIN time to respond
+            if (digitalRead(ROCKER_INPUT_PIN) != LOW)
+                break;
+        }
         TimeOfWakeup = now; // extend sleep timer
-        TransmittedSinceSleep = false; // allow another transmission
+    }
+
+    static const int WAIT_FOR_ROCKER_BOUNCE_MSEC = 100;
+    if (rainActivated)
+        delay(WAIT_FOR_ROCKER_BOUNCE_MSEC);
+
+    si7210.one();
+    Si7210::MagField_t magField = si7210.readMagField();
+
+    if (rainActivated)
+    {
+        Si7210::MagField_t magFieldDiff = magField - prevSentField;
+        if (magFieldDiff < 0)
+            magFieldDiff = -magFieldDiff;
+        Si7210::MagField_t limit = Si7210::getMaxAmplitude() / 2;
+#if 0 // defined(USE_SERIAL)
+        Serial.print("Rocker now=");
+        Serial.print(magField);
+        Serial.print(" prev=");
+        Serial.print(prevSentField);
+        Serial.print(" diff=");
+        Serial.println(magFieldDiff);
+#endif
+        if (magFieldDiff < limit)
+            rainActivated = false; // don't transmit consectutive RG if magField changes less than this
     }
 
 #if defined(USE_SERIAL)
@@ -360,58 +393,55 @@ void loop()
     }
 #endif
 
-    if (!TransmittedSinceSleep)
-    {
-        if (wakedByRocker || (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC))
-        {   /* transmit once per wakeup.
-            ** report rocker movement on any poll of ROCKER_INPUT_PIN LOW
-            ** during first MONITOR_ROCKER_MSEC. */
-            TransmittedSinceSleep = true;
-            int batt(0);
+    if (rainActivated ||
+        (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
+    {   /* transmit once per wakeup.
+        ** report rocker movement on any poll of ROCKER_INPUT_PIN LOW
+        ** during first MONITOR_ROCKER_MSEC. */
+        TransmittedSinceSleep = true;
+        int batt(0);
 #if defined(TELEMETER_BATTERY_V)
-            // 10K to VCC and (wired on board) 2.7K to ground
-            pinMode(BATTERY_PIN, INPUT_PULLUP); // sample the battery
-            batt = analogRead(BATTERY_PIN);
-            /* batt result means little in absolute terms, but its
-            ** history is telling. Failing cells have a pattern.*/
-            pinMode(BATTERY_PIN, INPUT); // turn off battery drain
+        // 10K to VCC and (wired on board) 2.7K to ground
+        pinMode(BATTERY_PIN, INPUT_PULLUP); // sample the battery
+        batt = analogRead(BATTERY_PIN);
+        /* batt result means little in absolute terms, but its
+        ** history is telling. Failing cells have a pattern.*/
+        pinMode(BATTERY_PIN, INPUT); // turn off battery drain
 #endif
-            si7210.one();
-            auto magField = si7210.readMagField();
+        // read temperature data
+        auto temperature = tmp175.readTempCx16();
 
-            // read temperature data
-            auto temperature = tmp175.readTempCx16();
+        char sign = '+';
+        if (temperature < 0) {
+            temperature = -temperature;
+            sign = '-';
+        }
+        else if (temperature == 0.f)
+            sign = ' ';
 
-            char sign = '+';
-            if (temperature < 0) {
-                temperature = -temperature;
-                sign = '-';
-            }
-            else if (temperature == 0.f)
-                sign = ' ';
+        int whole = temperature >> 4;
+        int frac = temperature & 0xF;
+        frac *= 100;
+        frac >>= 4;
 
-            auto whole = temperature >> 4;
-            auto frac = temperature & 0xF;
-            frac *= 100;
-            frac >>= 4;
-
-            static char buf[64];
-            sprintf(buf, "C:%u, B:%d, T:%c%d.%02d, RG: %d F: %d",
-                sampleCount++,
-                batt,
-                sign, whole,
-                frac,
-                (int)(wakedByRocker ? 1 : 0),
-                magField
-            );
+        static char buf[64];
+        sprintf(buf, "C:%u, B:%d, T:%c%d.%02d, RG: %d F: %d",
+            sampleCount++,
+            batt,
+            sign, whole,
+            frac,
+            static_cast<int>(rainActivated ? 1 : 0),
+            static_cast<int>(magField)
+        );
+        if (rainActivated)
+            prevSentField = magField;
 #if defined(USE_SERIAL)
-            Serial.println(buf);
+        Serial.println(buf);
 #endif
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
-            if (enableRadio)
-                radio.sendWithRetry(GATEWAY_NODEID, buf, strlen(buf));
+        if (enableRadio)
+            radio.sendWithRetry(GATEWAY_NODEID, buf, strlen(buf));
 #endif
-        }
     }
 
     if (now - TimeOfWakeup > ListenAfterTransmitMsec)

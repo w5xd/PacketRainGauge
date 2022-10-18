@@ -1,5 +1,6 @@
 #pragma once
 class Si7210 {
+    // https://www.silabs.com/documents/public/data-sheets/si7210-datasheet.pdf
 public:
     enum {
         FIELD_REGISTER_ADDRESS = 0xC1,
@@ -8,6 +9,8 @@ public:
         SLEEPTIMER_REGISTER_ADDRESS = 0xC9,
         POWER_CONTROL_ADDRESS = 0xC4
     };
+
+    typedef int16_t MagField_t;
 
     Si7210(uint8_t addr) : SlaveAddress(addr), AmSleeping(false)
     {}
@@ -71,7 +74,7 @@ public:
         Wire.endTransmission();
     }
 
-    int16_t readMagField()
+    MagField_t readMagField()
     {   // chip can read ±20.47 mT 
         Wire.beginTransmission(SlaveAddress);
         Wire.write(FIELD_REGISTER_ADDRESS);
@@ -109,6 +112,8 @@ public:
         return -1;
     }
 
+    static MagField_t getMaxAmplitude() { return static_cast<MagField_t>(MAX_MAGFIELD_MAGNITUDE); }
+
     void dump()
     {
         static const char AUTOINC_BIT = 1;
@@ -139,6 +144,7 @@ public:
         }
     }
 private:
+    enum { MAX_MAGFIELD_MAGNITUDE = 16384 };
     const uint8_t SlaveAddress;
     bool AmSleeping;
     uint8_t OTP_sw_op; // The "switch" setting as in OTP
