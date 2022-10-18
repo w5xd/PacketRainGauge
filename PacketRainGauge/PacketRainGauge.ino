@@ -133,7 +133,7 @@ namespace {
     TMP175 tmp175(0b1001000); //0b1001000 per TMP175 docs, is I2C address with all addressing pins low.
 
     Si7210 si7210(0x33);
-    Si7210::MagField_t prevSentField;
+    bool prevSentMagnetClose;
     const int MAX_WAIT_FOR_TOGGLE_MSEC = 100;
 }
 
@@ -210,14 +210,12 @@ void setup()
     auto swop = si7210.setup();
 
     si7210.one();
-    if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+    if (prevSentMagnetClose = (digitalRead(ROCKER_INPUT_PIN) == LOW))
     {
         si7210.toggleOutputSense();
         delay(MAX_WAIT_FOR_TOGGLE_MSEC);
         Serial.println("Magnet close on startup.");
     }
-    delay(1);
-    prevSentField = si7210.readMagField();
 }
 
 /* Power management:
@@ -268,9 +266,9 @@ void loop()
 {
     static bool TransmittedSinceSleep = false;
     unsigned long now = millis();
-    bool rainActivated = (digitalRead(ROCKER_INPUT_PIN) == LOW);
     
-    if (rainActivated)
+    // if magnetic sensor interrupt is active, switch it to its other sense
+    if (digitalRead(ROCKER_INPUT_PIN) == LOW)
     { /* I only have one job under this funnel, and I'm going to do it.*/
         si7210.toggleOutputSense(); // do this only once per wakeup
         for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
@@ -282,33 +280,25 @@ void loop()
         TimeOfWakeup = now; // extend sleep timer
     }
 
-    static const int WAIT_FOR_ROCKER_BOUNCE_MSEC = 100;
-    if (rainActivated)
-        delay(WAIT_FOR_ROCKER_BOUNCE_MSEC); // on found ROCKER_INPUT, delay to let rocker rest
+    const Si7210::MagField_t OneQuarter = Si7210::getMaxAmplitude() / 4;
+    const Si7210::MagField_t ThreeQuarters = 3 * OneQuarter;
 
     si7210.one();
     Si7210::MagField_t magField = si7210.readMagField();
 
+    Si7210::MagField_t amplitude = magField;
+    if (amplitude < 0)
+        amplitude = -amplitude;
+    bool MagClose = amplitude > ThreeQuarters;
+    bool MagFar = amplitude < OneQuarter;
+
+    bool rainActivated = true;
+    if (!MagClose && !MagFar)
+        rainActivated = false; // only report when in the bottom quarter and top quarter of the sensor range
+    else
+        rainActivated = prevSentMagnetClose ^ MagClose; // only report when its changed
     if (rainActivated)
-    {
-        const Si7210::MagField_t OneQuarter = Si7210::getMaxAmplitude() / 4;
-        const Si7210::MagField_t ThreeQuarters = 3 * OneQuarter;
-        Si7210::MagField_t amplitude = magField;
-        if (amplitude < 0)
-            amplitude = -amplitude;
-        if (amplitude >= OneQuarter && amplitude <= ThreeQuarters)
-            rainActivated = false; // only report amplitudes in the bottom quarter and top quarter of the sensor range
-        else
-        {
-            Si7210::MagField_t magFieldDiff = magField - prevSentField;
-            if (magFieldDiff < 0)
-                magFieldDiff = -magFieldDiff;
-            if (magFieldDiff <= OneQuarter)
-                rainActivated = false;// only report when the sensor switches between top and bottom quarter 
-        }
-    }
-    if (rainActivated)
-        prevSentField = magField;
+        prevSentMagnetClose = MagClose;
 
 #if defined(USE_SERIAL)
     // Set up a "buffer" for characters that we'll send:
