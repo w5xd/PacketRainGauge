@@ -266,6 +266,25 @@ void loop()
 {
     static bool TransmittedSinceSleep = false;
     unsigned long now = millis();
+	
+    /* This sketch uses the manufacturer defaults in the si7210 for controlling
+    ** its output pin. Those defaults include hysteresis such that output toggles
+    ** reliably on approach and again on retreat of the magnet from the sensor.
+    ** However, experiments in the raingauge assembly gave a few false positive
+    ** output toggles when the rocker toggles.
+    ** This sketch, to avoid those false positive counts, does not necessarily 
+    ** notify the gateway on each output toggle. Instead, this sketch enables the 
+    ** device to interrupt per manufacturer defaults (so battery life benefits 
+    ** from the very low power sleep mode) but sends rocker notifications based 
+    ** on the magnitude of the value of the magnetic field as read from the device.
+    ** On assembly, the magnet should be arranged so that its magnetic axis 
+    ** penetrates the sensor and maxes out its reading at plus or minus 
+    ** 16384. This sketch notifies when the output pin wakes it up, and, within
+    ** a few hundred milliseconds, the reading either exceedes 3/4 of that full 
+    ** scale, or is below 1/4 of full scale. It withholds notification even when 
+    ** the device interrupts, if the reading has not switched from one extreme 
+    ** to the other.
+    */
     
     // if magnetic sensor interrupt is active, switch it to its other sense
     if (digitalRead(ROCKER_INPUT_PIN) == LOW)
