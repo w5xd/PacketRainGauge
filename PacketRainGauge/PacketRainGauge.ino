@@ -47,6 +47,7 @@
 namespace {
     const int BATTERY_PIN = A0; // digitize (fraction of) battery voltage
     const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
+    const int TXD_PIN = 1;
     const int RC_RLY_INTERRUPT_PIN = 3;
     const int ROCKER_INPUT_PIN = 17;
 
@@ -135,13 +136,15 @@ namespace {
     Si7210 si7210(0x33);
     bool prevSentMagnetClose;
     const int MAX_WAIT_FOR_TOGGLE_MSEC = 100;
+    const long SERIAL_PORT_BAUDS = 38400;
+    const int MAX_MAGFIELD_POLL = 10;
 }
 
 void setup()
 {
 #if defined(USE_SERIAL)
     // Open a serial port so we can send keystrokes to the module:
-    Serial.begin(9600);
+    Serial.begin(SERIAL_PORT_BAUDS);
     Serial.print("Node ");
     Serial.print(radioConfiguration.NodeId(), DEC);
     Serial.print(" on network ");
@@ -213,8 +216,8 @@ void setup()
     if (prevSentMagnetClose = (digitalRead(ROCKER_INPUT_PIN) == LOW))
     {
         si7210.toggleOutputSense();
-        delay(MAX_WAIT_FOR_TOGGLE_MSEC);
         Serial.println("Magnet close on startup.");
+        delay(MAX_WAIT_FOR_TOGGLE_MSEC);
     }
 }
 
@@ -303,17 +306,27 @@ void loop()
     const Si7210::MagField_t ThreeQuarters = 3 * OneQuarter;
 
     si7210.one();
-    Si7210::MagField_t magField = si7210.readMagField();
+    delayMicroseconds(si7210.CONVERSION_TIME_MICROSECONDS);
+    Si7210::MagField_t magField;
+    
+    for (int i = 0;;)
+    {
+        magField = si7210.readMagField();
+        if (magField != Si7210::INVALID_FIELD_READING)
+            break;
+        if (++i >= MAX_MAGFIELD_POLL)
+            return; // do loop() again
+    }
 
     Si7210::MagField_t amplitude = magField;
     if (amplitude < 0)
         amplitude = -amplitude;
     bool MagClose = amplitude > ThreeQuarters;
     bool MagFar = amplitude < OneQuarter;
-
-    bool rainActivated = true;
-    if (!MagClose && !MagFar)
-        rainActivated = false; // only report when in the bottom quarter and top quarter of the sensor range
+     
+    bool rainActivated = !(!MagClose && !MagFar); // only report when in the bottom quarter and top quarter of the sensor range
+    if (!rainActivated)
+        TimeOfWakeup = now; // extend sleep timer while magfield is "in between"
     else
         rainActivated = prevSentMagnetClose ^ MagClose; // only report when its changed
     if (rainActivated)
@@ -481,7 +494,8 @@ namespace {
         Serial.println(SleepLoopTimerCount);
         Serial.end();// wait for finish and turn off pins before sleep
         pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
-        pinMode(1, INPUT);
+        digitalWrite(TXD_PIN, HIGH);
+        pinMode(TXD_PIN, OUTPUT); // TXD hold steady
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
@@ -534,9 +548,9 @@ namespace {
 #endif
 
 #if defined(USE_SERIAL)
-        Serial.begin(9600);
+        Serial.begin(SERIAL_PORT_BAUDS);
         Serial.print(count, DEC);
-        Serial.println(" wakeup");
+        Serial.println(" wakedup");
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)

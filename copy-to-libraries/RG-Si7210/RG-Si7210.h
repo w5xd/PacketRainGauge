@@ -7,7 +7,9 @@ public:
         AUTOINC_REGISTER_ADDRESS = 0xC5,
         SWOP_REGISTER_ADDRESS = 0xC6,
         SLEEPTIMER_REGISTER_ADDRESS = 0xC9,
-        POWER_CONTROL_ADDRESS = 0xC4
+        POWER_CONTROL_ADDRESS = 0xC4,
+        INVALID_FIELD_READING = 0x8000,
+        CONVERSION_TIME_MICROSECONDS = 11
     };
 
     typedef int16_t MagField_t;
@@ -45,8 +47,6 @@ public:
     {
     // see 12.2 Setting an Interrupt: 
     // https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf
-        static const char TIMER_BIT = 1;
-        static const char FAST_BIT = 2;
         static const char USE_CURRENT_DETECT_SETTINGS = 8;
         Wire.beginTransmission(SlaveAddress);
         Wire.write(POWER_CONTROL_ADDRESS);
@@ -84,10 +84,13 @@ public:
         {
             uint8_t dspsigm = Wire.read();
             uint8_t dspsigl = Wire.read();
-            dspsigm &= 0x7Fu; // top bit is "fresh bit"
-            return ((dspsigm << 8u) | dspsigl) - 0x4000;
+            if (dspsigm & 0x80u) // top bit is "fresh bit"
+            {
+                dspsigm &= 0x7Fu; 
+                return ((dspsigm << 8u) | dspsigl) - 0x4000;
+            }
         }
-        return 0x8000; // not a possible result
+        return INVALID_FIELD_READING; // not a possible result
     }
 
     int16_t toggleOutputSense()
