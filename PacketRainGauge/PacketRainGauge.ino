@@ -492,7 +492,8 @@ namespace {
 #if defined(USE_SERIAL)
         Serial.print("sleep for count=");
         Serial.println(SleepLoopTimerCount);
-        Serial.end();// wait for finish and turn off pins before sleep
+        Serial.flush();// wait for finish and turn off pins before sleep
+        Serial.end();
         pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
         digitalWrite(TXD_PIN, HIGH);
         pinMode(TXD_PIN, OUTPUT); // TXD hold steady
@@ -518,13 +519,13 @@ namespace {
         // this uses R1 and C1 to ground
         while (count < SleepLoopTimerCount)
         {
+            if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+                break;
             power_timer0_enable(); // delay() requires this
             pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
             digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
             delay(10); // Charge the 1uF
             pinMode(TIMER_RC_CHARGE_PIN, INPUT);
-            if (digitalRead(ROCKER_INPUT_PIN) == LOW)
-                break;
             cli();
             power_timer0_disable(); // timer0 powered down again
             attachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN), sleepPinInterrupt, LOW);
