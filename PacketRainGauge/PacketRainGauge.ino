@@ -138,12 +138,15 @@ namespace {
     const int MAX_WAIT_FOR_TOGGLE_MSEC = 100;
     const long SERIAL_PORT_BAUDS = 38400;
     const int MAX_MAGFIELD_POLL = 10;
+
+    bool enableSerial = true;
 }
 
 void setup()
 {
 #if defined(USE_SERIAL)
     // Open a serial port so we can send keystrokes to the module:
+    enableSerial = true;
     Serial.begin(SERIAL_PORT_BAUDS);
     Serial.print("Node ");
     Serial.print(radioConfiguration.NodeId(), DEC);
@@ -233,10 +236,30 @@ namespace {
     unsigned long ListenAfterTransmitMsec = FirstListenAfterTransmitMsec;
     unsigned int sampleCount;
 
+    void SetSerialEnabled(bool newVal)
+    {
+        if (newVal != enableSerial)
+        {
+            if (newVal)
+            {
+                Serial.begin(SERIAL_PORT_BAUDS);
+                Serial.println("Serial enabled");
+            }
+            else
+            {
+                Serial.flush();
+                Serial.end();
+            }
+            enableSerial = newVal;
+        }
+    }
+
     bool processCommand(const char *pCmd)
     {
         static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
+        static const char SET_SERIAL[] = "SetSerial";
         static const char VER[] = "VER";
+        const char *q = pCmd;
 
         if (strncmp(pCmd, SET_LOOPCOUNT, sizeof(SET_LOOPCOUNT) - 1) == 0)
         {
@@ -260,7 +283,12 @@ namespace {
             Serial.println("Revision 03");
 #endif
         }
-
+        else if (q = strstr(pCmd, SET_SERIAL))
+        {
+            q += sizeof(SET_SERIAL)-1;
+            while (isspace(*q)) q += 1;
+            SetSerialEnabled(*q == '1');
+        }
         return false;
     }
 }
@@ -269,7 +297,105 @@ void loop()
 {
     static bool TransmittedSinceSleep = false;
     unsigned long now = millis();
+
+#if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
+    // RECEIVING
+    // In this section, we'll check with the RFM69HCW to see
+    // if it has received any packets:
+
+    if (radio.receiveDone()) // Got one!
+    {
+        // Print out the information:
+        TimeOfWakeup = now; // extend sleep timer
+#if defined(USE_SERIAL)
+        if (enableSerial)
+        {
+            Serial.print("received from node ");
+            Serial.print(radio.SENDERID, DEC);
+            Serial.print(", message [");
+
+            // The actual message is contained in the DATA array,
+            // and is DATALEN bytes in size:
+
+            for (byte i = 0; i < radio.DATALEN; i++)
+                Serial.print((char)radio.DATA[i]);
+
+            // RSSI is the "Receive Signal Strength Indicator",
+            // smaller numbers mean higher power.
+
+            Serial.print("], RSSI ");
+            Serial.println(radio.RSSI);
+        }
+#endif
+        // RFM69 ensures trailing zero byte, unless buffer is full...so
+        radio.DATA[sizeof(radio.DATA) - 1] = 0; // ...if buffer is full, ignore last byte
+        if (processCommand((const char*)&radio.DATA[0]))
+        {
+#if defined(USE_SERIAL)
+            if (enableSerial)
+                Serial.println("Received command accepted");
+#endif
+        }
+        if (radio.ACKRequested())
+        {
+            radio.sendACK();
+#if defined(USE_SERIAL)
+            if (enableSerial)
+                Serial.println("ACK sent");
+#endif
+        }
+    }
+#endif
 	
+#if defined(USE_SERIAL)
+    // Set up a "buffer" for characters that we'll send:
+    static char sendbuffer[62];
+    static int sendlength = 0;
+    // In this section, we'll gather serial characters and
+    // send them to the other node if we (1) get a carriage return,
+    // or (2) the buffer is full (61 characters).
+
+    // If there is any serial input, add it to the buffer:
+
+    if (enableSerial && Serial.available() > 0)
+    {
+        TimeOfWakeup = now; // extend timer while we hear something
+        char input = Serial.read();
+
+        if (input != '\r') // not a carriage return
+        {
+            sendbuffer[sendlength] = input;
+            sendlength++;
+        }
+
+        // If the input is a carriage return, or the buffer is full:
+
+        if ((input == '\r') || (sendlength == sizeof(sendbuffer) - 1)) // CR or buffer full
+        {
+            sendbuffer[sendlength] = 0;
+            if (processCommand(sendbuffer))
+            {
+                if (enableSerial)
+                {
+                    Serial.print(sendbuffer);
+                    Serial.println(" command accepted for rain gauge");
+                }
+            }
+            else if (radioConfiguration.ApplyCommand(sendbuffer))
+            {
+                if (enableSerial)
+                {
+                    Serial.print(sendbuffer);
+                    Serial.println(" command accepted for radio");
+                }
+            }
+            if (enableSerial)
+                Serial.println("ready");
+            sendlength = 0; // reset the packet
+        }
+    }
+#endif
+
     /* This sketch uses the manufacturer defaults in the si7210 for controlling
     ** its output pin. Those defaults include hysteresis such that output toggles
     ** reliably on approach and again on retreat of the magnet from the sensor.
@@ -321,102 +447,16 @@ void loop()
     Si7210::MagField_t amplitude = magField;
     if (amplitude < 0)
         amplitude = -amplitude;
-    bool MagClose = amplitude > ThreeQuarters;
-    bool MagFar = amplitude < OneQuarter;
+    bool MagIsClose = amplitude > ThreeQuarters;
+    bool MagIsFar = amplitude < OneQuarter;
      
-    bool rainActivated = !(!MagClose && !MagFar); // only report when in the bottom quarter and top quarter of the sensor range
+    bool rainActivated = !(!MagIsClose && !MagIsFar); // only report when in the bottom quarter and top quarter of the sensor range
     if (!rainActivated)
         TimeOfWakeup = now; // extend sleep timer while magfield is "in between"
     else
-        rainActivated = prevSentMagnetClose ^ MagClose; // only report when its changed
+        rainActivated = prevSentMagnetClose ^ MagIsClose; // only report when its changed
     if (rainActivated)
-        prevSentMagnetClose = MagClose;
-
-#if defined(USE_SERIAL)
-    // Set up a "buffer" for characters that we'll send:
-    static char sendbuffer[62];
-    static int sendlength = 0;
-    // In this section, we'll gather serial characters and
-    // send them to the other node if we (1) get a carriage return,
-    // or (2) the buffer is full (61 characters).
-
-    // If there is any serial input, add it to the buffer:
-
-    if (Serial.available() > 0)
-    {
-        TimeOfWakeup = now; // extend timer while we hear something
-        char input = Serial.read();
-
-        if (input != '\r') // not a carriage return
-        {
-            sendbuffer[sendlength] = input;
-            sendlength++;
-        }
-
-        // If the input is a carriage return, or the buffer is full:
-
-        if ((input == '\r') || (sendlength == sizeof(sendbuffer) - 1)) // CR or buffer full
-        {
-            sendbuffer[sendlength] = 0;
-            if (processCommand(sendbuffer))
-            {
-                Serial.print(sendbuffer);
-                Serial.println(" command accepted for rain gauge");
-            }
-            else if (radioConfiguration.ApplyCommand(sendbuffer))
-            {
-                Serial.print(sendbuffer);
-                Serial.println(" command accepted for radio");
-            }
-            Serial.println("ready");
-            sendlength = 0; // reset the packet
-        }
-    }
-#endif
-
-#if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
-    // RECEIVING
-    // In this section, we'll check with the RFM69HCW to see
-    // if it has received any packets:
-
-    if (radio.receiveDone()) // Got one!
-    {
-        // Print out the information:
-        TimeOfWakeup = now; // extend sleep timer
-#if defined(USE_SERIAL)
-        Serial.print("received from node ");
-        Serial.print(radio.SENDERID, DEC);
-        Serial.print(", message [");
-
-        // The actual message is contained in the DATA array,
-        // and is DATALEN bytes in size:
-
-        for (byte i = 0; i < radio.DATALEN; i++)
-            Serial.print((char)radio.DATA[i]);
-
-        // RSSI is the "Receive Signal Strength Indicator",
-        // smaller numbers mean higher power.
-
-        Serial.print("], RSSI ");
-        Serial.println(radio.RSSI);
-#endif
-        // RFM69 ensures trailing zero byte, unless buffer is full...so
-        radio.DATA[sizeof(radio.DATA) - 1] = 0; // ...if buffer is full, ignore last byte
-        if (processCommand((const char *)&radio.DATA[0]))
-        {
-#if defined(USE_SERIAL)
-        	Serial.println("Received command accepted");
-#endif
-        }
-        if (radio.ACKRequested())
-        {
-            radio.sendACK();
-#if defined(USE_SERIAL)
-            Serial.println("ACK sent");
-#endif
-        }
-    }
-#endif
+        prevSentMagnetClose = MagIsClose;
 
     if (rainActivated ||
         (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
@@ -459,7 +499,8 @@ void loop()
             static_cast<int>(magField)
         );
 #if defined(USE_SERIAL)
-        Serial.println(buf);
+        if (enableSerial)
+            Serial.println(buf);
 #endif
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
         if (enableRadio)
@@ -490,10 +531,13 @@ namespace {
     {
 
 #if defined(USE_SERIAL)
-        Serial.print("sleep for count=");
-        Serial.println(SleepLoopTimerCount);
-        Serial.flush();// wait for finish and turn off pins before sleep
-        Serial.end();
+        if (enableSerial)
+        {
+            Serial.print("sleep for count=");
+            Serial.println(SleepLoopTimerCount);
+            Serial.flush();// wait for finish and turn off pins before sleep
+            Serial.end();
+        }
         pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
         digitalWrite(TXD_PIN, HIGH);
         pinMode(TXD_PIN, OUTPUT); // TXD hold steady
@@ -549,9 +593,12 @@ namespace {
 #endif
 
 #if defined(USE_SERIAL)
-        Serial.begin(SERIAL_PORT_BAUDS);
-        Serial.print(count, DEC);
-        Serial.println(" wakedup");
+        if (enableSerial)
+        {
+            Serial.begin(SERIAL_PORT_BAUDS);
+            Serial.print(count, DEC);
+            Serial.println(" wakedup");
+        }
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
