@@ -45,6 +45,10 @@
 #endif
 
 namespace {
+    enum class EepromAddresses {
+        PACKET_RAINGAUGE_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
+        PACKET_RAINGAUGE_DISABLE_SERIAL = PACKET_RAINGAUGE_START,
+        PACKET_RAINGAUGE_END = PACKET_RAINGAUGE_DISABLE_SERIAL + 1};
     const int BATTERY_PIN = A0; // digitize (fraction of) battery voltage
     const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
     const int TXD_PIN = 1;
@@ -78,6 +82,21 @@ namespace {
     const bool USEACK = true; // Request ACKs or not
     const int RFM69_RESET_PIN = 9;
     const uint8_t GATEWAY_NODEID = 1;
+
+    bool getOnloopSerialDisable()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
+        uint8_t ret = EEPROM.read(addr);
+        if (ret == static_cast<uint8_t>(0xff))
+            return 0;
+        return ret != 0;
+    }
+    void setOnloopSerialDisable(bool b)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
+        uint8_t v = b ? 1 : 0;
+        EEPROM.write(addr, v);
+    }
 
     class SleepRFM69 : public RFM69
     {
@@ -258,6 +277,7 @@ namespace {
     {
         static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
         static const char SET_SERIAL[] = "SetSerial";
+        static const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
         static const char VER[] = "VER";
         const char *q = pCmd;
 
@@ -282,12 +302,21 @@ namespace {
 #if defined(USE_SERIAL)
             Serial.println("Revision 03");
 #endif
+            return true;
         }
         else if (q = strstr(pCmd, SET_SERIAL))
         {
             q += sizeof(SET_SERIAL)-1;
             while (isspace(*q)) q += 1;
             SetSerialEnabled(*q == '1');
+            return true;
+        }
+        else if (q = strstr(pCmd, SET_SERIALONLOOP))
+        {
+            q += sizeof(SET_SERIALONLOOP) - 1;
+            while (isspace(*q)) q += 1;
+            setOnloopSerialDisable(*q == '1');
+            return true;
         }
         return false;
     }
@@ -511,6 +540,8 @@ void loop()
     if (now - TimeOfWakeup > ListenAfterTransmitMsec)
     {
         TransmittedSinceSleep = false;
+        if (getOnloopSerialDisable())
+            SetSerialEnabled(false);
         SleepTilNextInterrupt();
         TimeOfWakeup = millis();
         ListenAfterTransmitMsec = NormalListenAfterTransmit;
