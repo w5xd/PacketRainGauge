@@ -17,6 +17,7 @@
 * EEPROM raw=0x30 hysteresis = 512
 * si7210 tamper= 63
 * 
+* Commands to set the si7210 as above:
 * SetSWOP 65
 * SetSWHYST 30
 */
@@ -56,7 +57,8 @@
 namespace {
     enum class EepromAddresses {
         PACKET_RAINGAUGE_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
-        PACKET_RAINGAUGE_DISABLE_SERIAL = PACKET_RAINGAUGE_START,
+        PACKET_RAINGAUGE_SLEEP_LOOP_COUNT = PACKET_RAINGAUGE_START,
+        PACKET_RAINGAUGE_DISABLE_SERIAL = PACKET_RAINGAUGE_SLEEP_LOOP_COUNT + sizeof(unsigned),
         PACKET_RAINGAUGE_SWOP = PACKET_RAINGAUGE_DISABLE_SERIAL + 1,
         PACKET_RAINGAUGE_SWHYST = PACKET_RAINGAUGE_SWOP + 1,
         PACKET_RAINGAUGE_END = PACKET_RAINGAUGE_SWHYST + 1
@@ -73,7 +75,7 @@ namespace {
     ** 2. the R1/C1 sleep timer
     ** 3. the Si7210 AL pin that indicates the approach or departure of a magnet
     **
-    ** The RFM69 gets INT0
+    ** The RFM69 is on INT0
     ** The RC circuit and the Si7210 share INT1 through the 74HCS27 configured as an AND gate.
     ** Both are also routed to dedicated pins on the Arduino, D8 and D17, respectively,
     ** so the sketch can tell which was the cause.
@@ -255,7 +257,7 @@ void setup()
     TimeOfWakeup = millis(); // start loop timer now
 
     unsigned eepromLoopCount(0);
-    EEPROM.get(RadioConfiguration::TotalEpromUsed(), eepromLoopCount);
+    EEPROM.get(static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SLEEP_LOOP_COUNT), eepromLoopCount);
     if (eepromLoopCount && eepromLoopCount <= MAX_SLEEP_LOOP_COUNT)
     	SleepLoopTimerCount = eepromLoopCount;
 
@@ -367,7 +369,7 @@ namespace {
                 if (v && v < MAX_SLEEP_LOOP_COUNT)
                 {
                     SleepLoopTimerCount = v;
-                    EEPROM.put(RadioConfiguration::TotalEpromUsed(), SleepLoopTimerCount);
+                    EEPROM.put(static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SLEEP_LOOP_COUNT), SleepLoopTimerCount);
                     return true;
                 }
             }
