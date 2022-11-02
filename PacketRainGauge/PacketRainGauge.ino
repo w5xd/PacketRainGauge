@@ -34,7 +34,7 @@
 // Original library: https://github.com/LowPowerLab/RFM69
 
 // Include the RFM69 and SPI libraries:
-#define USE_RFM69
+//#define USE_RFM69
 //#define SLEEP_RFM69_ONLY /* for testing only */
 #define USE_SERIAL
 #define TELEMETER_BATTERY_V
@@ -83,21 +83,6 @@ namespace {
     const int RFM69_RESET_PIN = 9;
     const uint8_t GATEWAY_NODEID = 1;
 
-    bool getOnloopSerialDisable()
-    {
-        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
-        uint8_t ret = EEPROM.read(addr);
-        if (ret == static_cast<uint8_t>(0xff))
-            return 0;
-        return ret != 0;
-    }
-    void setOnloopSerialDisable(bool b)
-    {
-        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
-        uint8_t v = b ? 1 : 0;
-        EEPROM.write(addr, v);
-    }
-
     class SleepRFM69 : public RFM69
     {
         /* SleepRFM69 has specializations to power it down and power it back up
@@ -139,6 +124,22 @@ namespace {
     SleepRFM69 radio;
 #endif
 
+    bool getOnloopSerialDisable()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
+        uint8_t ret = EEPROM.read(addr);
+        if (ret == static_cast<uint8_t>(0xff))
+            return 0;
+        return ret != 0;
+    }
+    void setOnloopSerialDisable(bool b)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
+        uint8_t v = b ? 1 : 0;
+        EEPROM.write(addr, v);
+    }
+
+
 #if defined(TELEMETER_BATTERY_V)
     void ResetAnalogReference();
 #endif
@@ -159,6 +160,7 @@ namespace {
     const int MAX_MAGFIELD_POLL = 10;
 
     bool enableSerial = true;
+    const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
 }
 
 void setup()
@@ -241,6 +243,10 @@ void setup()
         Serial.println("Magnet close on startup.");
         delay(MAX_WAIT_FOR_TOGGLE_MSEC);
     }
+
+    Serial.print(SET_SERIALONLOOP);
+    Serial.print(" ");
+    Serial.println(getOnloopSerialDisable() ? "ON" : "OFF");
 }
 
 /* Power management:
@@ -277,7 +283,6 @@ namespace {
     {
         static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
         static const char SET_SERIAL[] = "SetSerial";
-        static const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
         static const char VER[] = "VER";
         const char *q = pCmd;
 
