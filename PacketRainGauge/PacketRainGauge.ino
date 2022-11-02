@@ -10,6 +10,10 @@
 * 
 * The Si7210 has a built in temperature sensor, specified as +/-4C. The TMP175 is
 * specified as +/-1C
+* 
+* EEPROM raw =0x65 threshold=1344
+* EEPROM raw=0x30 hysteresis = 512
+* si7210 tamper= 63
 */
 
 #include <RadioConfiguration.h>
@@ -34,7 +38,7 @@
 // Original library: https://github.com/LowPowerLab/RFM69
 
 // Include the RFM69 and SPI libraries:
-//#define USE_RFM69
+#define USE_RFM69
 //#define SLEEP_RFM69_ONLY /* for testing only */
 #define USE_SERIAL
 #define TELEMETER_BATTERY_V
@@ -48,7 +52,10 @@ namespace {
     enum class EepromAddresses {
         PACKET_RAINGAUGE_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
         PACKET_RAINGAUGE_DISABLE_SERIAL = PACKET_RAINGAUGE_START,
-        PACKET_RAINGAUGE_END = PACKET_RAINGAUGE_DISABLE_SERIAL + 1};
+        PACKET_RAINGAUGE_SWOP = PACKET_RAINGAUGE_DISABLE_SERIAL + 1,
+        PACKET_RAINGAUGE_SWHYST = PACKET_RAINGAUGE_SWOP + 1,
+        PACKET_RAINGAUGE_END = PACKET_RAINGAUGE_SWHYST + 1
+    };
     const int BATTERY_PIN = A0; // digitize (fraction of) battery voltage
     const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
     const int TXD_PIN = 1;
@@ -136,6 +143,26 @@ namespace {
     {
         int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
         uint8_t v = b ? 1 : 0;
+        EEPROM.write(addr, v);
+    }
+    uint8_t getRaingaugeSwop()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWOP);
+        return EEPROM.read(addr);
+    }
+    void setRaingaugeSwop(uint8_t v)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWOP);
+        EEPROM.write(addr, v);
+    }
+    uint8_t getRaingaugeSwHyst()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWHYST);
+        return EEPROM.read(addr);
+    }
+    void setRaingaugeSwHyst(uint8_t v)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWHYST);
         EEPROM.write(addr, v);
     }
 
@@ -234,7 +261,42 @@ void setup()
 
     Wire.begin();
     tmp175.setup();
-    auto swop = si7210.setup();
+    auto OTPthreshold = si7210.setup();
+
+    Serial.print("si7210 OTP threshold=");
+    Serial.println(OTPthreshold);
+
+    auto swop = getRaingaugeSwop();
+    uint16_t threshold;
+    if (swop != 0xffu)
+    {
+        threshold = si7210.setSwOp(swop);
+        Serial.print("EEPROM raw =0x"); 
+        Serial.print((int)swop, HEX);
+        Serial.print(" threshold=");
+        Serial.println(threshold);
+    }
+
+    auto hyst = getRaingaugeSwHyst();
+    uint16_t hysteresis;
+    if (hyst != 0xffu)
+    {
+        hysteresis = si7210.setSwHyst(hyst);
+        Serial.print("EEPROM raw=0x");
+        Serial.print((int) hyst, HEX);
+        Serial.print(" hysteresis = ");
+    }
+    else
+    {
+        Serial.print("OTP hysteresis = ");
+        hysteresis = si7210.hysteresis(si7210.getSwHyst());
+    }
+    Serial.println(hysteresis);
+
+    int tamper = si7210.getSwTamper();
+    Serial.print("si7210 tamper= ");
+    Serial.println(tamper);
+
 
     si7210.one();
     if (prevSentMagnetClose = (digitalRead(ROCKER_INPUT_PIN) == LOW))
@@ -283,6 +345,9 @@ namespace {
     {
         static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
         static const char SET_SERIAL[] = "SetSerial";
+        static const char SET_THRESHOLD[] = "SetSWOP";
+        static const char SET_HYSTERESIS[] = "SetSWHYST";
+        static const char SET_TOOTP[] = "SetToOTP";
         static const char VER[] = "VER";
         const char *q = pCmd;
 
@@ -322,6 +387,37 @@ namespace {
             while (isspace(*q)) q += 1;
             setOnloopSerialDisable(*q == '1');
             return true;
+        }
+        else if (q = strstr(pCmd, SET_THRESHOLD))
+        {
+            q += sizeof(SET_THRESHOLD) - 1;
+            uint8_t v = strtol(q, 0, 16);
+            setRaingaugeSwop(v);
+            if (enableSerial)
+            {
+                Serial.print("Set threshold=");
+                Serial.println(si7210.setSwOp(v));
+            }
+            return true;
+        }
+        else if (q = strstr(pCmd, SET_HYSTERESIS))
+        {
+            q += sizeof(SET_HYSTERESIS) - 1;
+            uint8_t v = strtol(q, 0, 16);
+            setRaingaugeSwHyst(v);
+            if (enableSerial)
+            {
+                Serial.print("Set hyteresis=");
+                Serial.println(si7210.setSwHyst(v));
+            }
+            return true;
+        }
+        else if (q = strstr(pCmd, SET_TOOTP))
+        {
+            setRaingaugeSwHyst(0xff);
+            setRaingaugeSwop(0xff);
+            si7210.resetToOTP();
+            si7210.wakeup();
         }
         return false;
     }
@@ -448,22 +544,38 @@ void loop()
     ** the device interrupts, if the reading has not switched from one extreme 
     ** to the other.
     */
+
+    bool rainActivated = false;
     
     // if magnetic sensor interrupt is active, switch it to its other sense
     if (digitalRead(ROCKER_INPUT_PIN) == LOW)
     { /* I only have one job under this funnel, and I'm going to do it.*/
-        si7210.toggleOutputSense(); // do this only once per wakeup
+        auto v = si7210.toggleOutputSense(); // do this only once per wakeup
+#if 0
+        if (enableSerial)
+        {
+            if (v == -1)
+                Serial.println("toggleOutputSense failed");
+            else
+            {
+                Serial.print("toggleoutputsense = 0x");
+                Serial.println(v, HEX);
+            }
+        }
+#endif
+
         for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
         {
             delay(1); // give ROCKER_INPUT_PIN time to respond
             if (digitalRead(ROCKER_INPUT_PIN) != LOW)
+            {
+                rainActivated = true;
                 break; // normally this happens with j == 0
+            }
         }
         TimeOfWakeup = now; // extend sleep timer
     }
 
-    const Si7210::MagField_t OneQuarter = Si7210::getMaxAmplitude() / 4;
-    const Si7210::MagField_t ThreeQuarters = 3 * OneQuarter;
 
     si7210.one();
     delayMicroseconds(si7210.CONVERSION_TIME_MICROSECONDS);
@@ -478,19 +590,23 @@ void loop()
             return; // do loop() again
     }
 
+#if 1
+    const Si7210::MagField_t FarThreshold = Si7210::getMaxAmplitude() / 16;
+    const Si7210::MagField_t NearThreshold = Si7210::getMaxAmplitude() / 2;
     Si7210::MagField_t amplitude = magField;
     if (amplitude < 0)
         amplitude = -amplitude;
-    bool MagIsClose = amplitude > ThreeQuarters;
-    bool MagIsFar = amplitude < OneQuarter;
+    bool MagIsClose = amplitude > NearThreshold;
+    bool MagIsFar = amplitude < FarThreshold;
      
-    bool rainActivated = !(!MagIsClose && !MagIsFar); // only report when in the bottom quarter and top quarter of the sensor range
+    rainActivated = !(!MagIsClose && !MagIsFar); // only report when in the bottom quarter and top quarter of the sensor range
     if (!rainActivated)
         TimeOfWakeup = now; // extend sleep timer while magfield is "in between"
     else
         rainActivated = prevSentMagnetClose ^ MagIsClose; // only report when its changed
     if (rainActivated)
         prevSentMagnetClose = MagIsClose;
+#endif
 
     if (rainActivated ||
         (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
@@ -588,7 +704,7 @@ namespace {
         analogRead(BATTERY_PIN); // doesn't shut down the band gap until we USE ADC
 #endif
 
-        si7210.sleep();
+        si7210.sleep(false);
 
         // sleep mode power supply current measurements indicate this appears to be redundant
         power_all_disable(); // turn off everything
@@ -641,6 +757,7 @@ namespace {
         radio.SPIon();
 #endif
         si7210.wakeup();
+        si7210.one(); // Output pin processing not working until this
         return count;
     }
 
