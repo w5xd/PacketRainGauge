@@ -531,11 +531,9 @@ void loop()
     }
 #endif
 
-    /* This sketch uses the manufacturer defaults in the si7210 for controlling
-    ** its output pin. Those defaults include hysteresis such that output toggles
-    ** reliably on approach and again on retreat of the magnet from the sensor.
-    ** However, experiments in the raingauge assembly gave some false positive
-    ** output toggles when the rocker toggles.
+    /* Using the si7210 manufacturer defaults for threshold and hysteresis 
+    ** controlling its output pin, experiments in the raingauge assembly gave 
+    ** some false positive output toggles when the rocker toggles.
     ** This sketch, to avoid those false positive counts, does not necessarily 
     ** notify the gateway on each output toggle. Instead, this sketch enables the 
     ** device to interrupt per manufacturer defaults (so battery life benefits 
@@ -595,7 +593,7 @@ void loop()
             return; // do loop() again
     }
 
-#if 1
+#if 1 // compute rainActivated using the magnetic field amplitude rather than the si7210 output pin
     const Si7210::MagField_t FarThreshold = Si7210::getMaxAmplitude() / 16;
     const Si7210::MagField_t NearThreshold = Si7210::getMaxAmplitude() / 2;
     Si7210::MagField_t amplitude = magField;
