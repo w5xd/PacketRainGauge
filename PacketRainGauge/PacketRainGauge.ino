@@ -10,6 +10,15 @@
 * 
 * The Si7210 has a built in temperature sensor, specified as +/-4C. The TMP175 is
 * specified as +/-1C
+* 
+* The default magnetic field amplitude threshold and hysteresis give more interrupts
+* than these settings:
+* EEPROM raw =0x65 threshold=1344
+* EEPROM raw=0x30 hysteresis = 512
+* si7210 tamper= 63
+* 
+* SetSWOP 65
+* SetSWHYST 30
 */
 
 #include <RadioConfiguration.h>
@@ -45,8 +54,16 @@
 #endif
 
 namespace {
+    enum class EepromAddresses {
+        PACKET_RAINGAUGE_START = RadioConfiguration::EepromAddresses::TOTAL_EEPROM_USED,
+        PACKET_RAINGAUGE_DISABLE_SERIAL = PACKET_RAINGAUGE_START,
+        PACKET_RAINGAUGE_SWOP = PACKET_RAINGAUGE_DISABLE_SERIAL + 1,
+        PACKET_RAINGAUGE_SWHYST = PACKET_RAINGAUGE_SWOP + 1,
+        PACKET_RAINGAUGE_END = PACKET_RAINGAUGE_SWHYST + 1
+    };
     const int BATTERY_PIN = A0; // digitize (fraction of) battery voltage
     const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
+    const int TXD_PIN = 1;
     const int RC_RLY_INTERRUPT_PIN = 3;
     const int ROCKER_INPUT_PIN = 17;
 
@@ -119,6 +136,42 @@ namespace {
     SleepRFM69 radio;
 #endif
 
+    bool getOnloopSerialDisable()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
+        uint8_t ret = EEPROM.read(addr);
+        if (ret == static_cast<uint8_t>(0xff))
+            return 0;
+        return ret != 0;
+    }
+    void setOnloopSerialDisable(bool b)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_DISABLE_SERIAL);
+        uint8_t v = b ? 1 : 0;
+        EEPROM.write(addr, v);
+    }
+    uint8_t getRaingaugeSwop()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWOP);
+        return EEPROM.read(addr);
+    }
+    void setRaingaugeSwop(uint8_t v)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWOP);
+        EEPROM.write(addr, v);
+    }
+    uint8_t getRaingaugeSwHyst()
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWHYST);
+        return EEPROM.read(addr);
+    }
+    void setRaingaugeSwHyst(uint8_t v)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWHYST);
+        EEPROM.write(addr, v);
+    }
+
+
 #if defined(TELEMETER_BATTERY_V)
     void ResetAnalogReference();
 #endif
@@ -133,13 +186,21 @@ namespace {
     TMP175 tmp175(0b1001000); //0b1001000 per TMP175 docs, is I2C address with all addressing pins low.
 
     Si7210 si7210(0x33);
+    bool prevSentMagnetClose;
+    const int MAX_WAIT_FOR_TOGGLE_MSEC = 100;
+    const long SERIAL_PORT_BAUDS = 38400;
+    const int MAX_MAGFIELD_POLL = 10;
+
+    bool enableSerial = true;
+    const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
 }
 
 void setup()
 {
 #if defined(USE_SERIAL)
     // Open a serial port so we can send keystrokes to the module:
-    Serial.begin(9600);
+    enableSerial = true;
+    Serial.begin(SERIAL_PORT_BAUDS);
     Serial.print("Node ");
     Serial.print(radioConfiguration.NodeId(), DEC);
     Serial.print(" on network ");
@@ -205,16 +266,54 @@ void setup()
 
     Wire.begin();
     tmp175.setup();
-    auto swop = si7210.setup();
+    auto OTPthreshold = si7210.setup();
 
-    si7210.one();
-    if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+    Serial.print("si7210 OTP threshold=");
+    Serial.println(OTPthreshold);
+
+    auto swop = getRaingaugeSwop();
+    uint16_t threshold;
+    if (swop != 0xffu)
     {
-        si7210.toggleOutputSense();
-        delay(10);
-        Serial.println("Magnet close on startup.");
+        threshold = si7210.setSwOp(swop);
+        Serial.print("EEPROM raw =0x"); 
+        Serial.print((int)swop, HEX);
+        Serial.print(" threshold=");
+        Serial.println(threshold);
     }
 
+    auto hyst = getRaingaugeSwHyst();
+    uint16_t hysteresis;
+    if (hyst != 0xffu)
+    {
+        hysteresis = si7210.setSwHyst(hyst);
+        Serial.print("EEPROM raw=0x");
+        Serial.print((int) hyst, HEX);
+        Serial.print(" hysteresis = ");
+    }
+    else
+    {
+        Serial.print("OTP hysteresis = ");
+        hysteresis = si7210.hysteresis(si7210.getSwHyst());
+    }
+    Serial.println(hysteresis);
+
+    int tamper = si7210.getSwTamper();
+    Serial.print("si7210 tamper= ");
+    Serial.println(tamper);
+
+
+    si7210.one();
+    if (prevSentMagnetClose = (digitalRead(ROCKER_INPUT_PIN) == LOW))
+    {
+        si7210.toggleOutputSense();
+        Serial.println("Magnet close on startup.");
+        delay(MAX_WAIT_FOR_TOGGLE_MSEC);
+    }
+
+    Serial.print(SET_SERIALONLOOP);
+    Serial.print(" ");
+    Serial.println(getOnloopSerialDisable() ? "ON" : "OFF");
 }
 
 /* Power management:
@@ -229,9 +328,34 @@ namespace {
     unsigned long ListenAfterTransmitMsec = FirstListenAfterTransmitMsec;
     unsigned int sampleCount;
 
+    void SetSerialEnabled(bool newVal)
+    {
+        if (newVal != enableSerial)
+        {
+            if (newVal)
+            {
+                Serial.begin(SERIAL_PORT_BAUDS);
+                Serial.println("Serial enabled");
+            }
+            else
+            {
+                Serial.flush();
+                Serial.end();
+            }
+            enableSerial = newVal;
+        }
+    }
+
     bool processCommand(const char *pCmd)
     {
         static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
+        static const char SET_SERIAL[] = "SetSerial";
+        static const char SET_THRESHOLD[] = "SetSWOP";
+        static const char SET_HYSTERESIS[] = "SetSWHYST";
+        static const char SET_TOOTP[] = "SetToOTP";
+        static const char VER[] = "VER";
+        const char *q = pCmd;
+
         if (strncmp(pCmd, SET_LOOPCOUNT, sizeof(SET_LOOPCOUNT) - 1) == 0)
         {
             pCmd = RadioConfiguration::SkipWhiteSpace(
@@ -248,32 +372,116 @@ namespace {
                 }
             }
         }
+        else if (strncmp(pCmd, VER, sizeof(VER) - 1) == 0)
+        {
+#if defined(USE_SERIAL)
+            Serial.println("Revision 03");
+#endif
+            return true;
+        }
+        else if (q = strstr(pCmd, SET_SERIAL))
+        {
+            q += sizeof(SET_SERIAL)-1;
+            while (isspace(*q)) q += 1;
+            SetSerialEnabled(*q == '1');
+            return true;
+        }
+        else if (q = strstr(pCmd, SET_SERIALONLOOP))
+        {
+            q += sizeof(SET_SERIALONLOOP) - 1;
+            while (isspace(*q)) q += 1;
+            setOnloopSerialDisable(*q == '1');
+            return true;
+        }
+        else if (q = strstr(pCmd, SET_THRESHOLD))
+        {
+            q += sizeof(SET_THRESHOLD) - 1;
+            uint8_t v = strtol(q, 0, 16);
+            setRaingaugeSwop(v);
+            if (enableSerial)
+            {
+                Serial.print("Set threshold=");
+                Serial.println(si7210.setSwOp(v));
+            }
+            return true;
+        }
+        else if (q = strstr(pCmd, SET_HYSTERESIS))
+        {
+            q += sizeof(SET_HYSTERESIS) - 1;
+            uint8_t v = strtol(q, 0, 16);
+            setRaingaugeSwHyst(v);
+            if (enableSerial)
+            {
+                Serial.print("Set hyteresis=");
+                Serial.println(si7210.setSwHyst(v));
+            }
+            return true;
+        }
+        else if (q = strstr(pCmd, SET_TOOTP))
+        {
+            setRaingaugeSwHyst(0xff);
+            setRaingaugeSwop(0xff);
+            si7210.resetToOTP();
+            si7210.wakeup();
+        }
         return false;
     }
 }
 
 void loop()
 {
-    static const int POLL_MAG_FIELD_MSEC = 300;
     static bool TransmittedSinceSleep = false;
     unsigned long now = millis();
-    bool wakedByRocker = false;
 
-    static unsigned long LastPolledMagField;
-    if (now - LastPolledMagField >= POLL_MAG_FIELD_MSEC)
+#if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
+    // RECEIVING
+    // In this section, we'll check with the RFM69HCW to see
+    // if it has received any packets:
+
+    if (radio.receiveDone()) // Got one!
     {
-        si7210.one();
-        LastPolledMagField = now;
-    }
-
-    if (wakedByRocker = digitalRead(ROCKER_INPUT_PIN) == LOW)
-    { /* I only have one job under this funnel, and I'm going to do it.*/
-        si7210.toggleOutputSense(); // do this only once per wakeup
-        delay(1); // give ROCKER_INPUT_PIN time to respond
+        // Print out the information:
         TimeOfWakeup = now; // extend sleep timer
-        TransmittedSinceSleep = false; // allow another transmission
-    }
+#if defined(USE_SERIAL)
+        if (enableSerial)
+        {
+            Serial.print("received from node ");
+            Serial.print(radio.SENDERID, DEC);
+            Serial.print(", message [");
 
+            // The actual message is contained in the DATA array,
+            // and is DATALEN bytes in size:
+
+            for (byte i = 0; i < radio.DATALEN; i++)
+                Serial.print((char)radio.DATA[i]);
+
+            // RSSI is the "Receive Signal Strength Indicator",
+            // smaller numbers mean higher power.
+
+            Serial.print("], RSSI ");
+            Serial.println(radio.RSSI);
+        }
+#endif
+        // RFM69 ensures trailing zero byte, unless buffer is full...so
+        radio.DATA[sizeof(radio.DATA) - 1] = 0; // ...if buffer is full, ignore last byte
+        if (processCommand((const char*)&radio.DATA[0]))
+        {
+#if defined(USE_SERIAL)
+            if (enableSerial)
+                Serial.println("Received command accepted");
+#endif
+        }
+        if (radio.ACKRequested())
+        {
+            radio.sendACK();
+#if defined(USE_SERIAL)
+            if (enableSerial)
+                Serial.println("ACK sent");
+#endif
+        }
+    }
+#endif
+	
 #if defined(USE_SERIAL)
     // Set up a "buffer" for characters that we'll send:
     static char sendbuffer[62];
@@ -284,7 +492,7 @@ void loop()
 
     // If there is any serial input, add it to the buffer:
 
-    if (Serial.available() > 0)
+    if (enableSerial && Serial.available() > 0)
     {
         TimeOfWakeup = now; // extend timer while we hear something
         char input = Serial.read();
@@ -302,121 +510,164 @@ void loop()
             sendbuffer[sendlength] = 0;
             if (processCommand(sendbuffer))
             {
-                Serial.print(sendbuffer);
-                Serial.println(" command accepted for rain gauge");
+                if (enableSerial)
+                {
+                    Serial.print(sendbuffer);
+                    Serial.println(" command accepted for rain gauge");
+                }
             }
             else if (radioConfiguration.ApplyCommand(sendbuffer))
             {
-                Serial.print(sendbuffer);
-                Serial.println(" command accepted for radio");
+                if (enableSerial)
+                {
+                    Serial.print(sendbuffer);
+                    Serial.println(" command accepted for radio");
+                }
             }
-            Serial.println("ready");
+            if (enableSerial)
+                Serial.println("ready");
             sendlength = 0; // reset the packet
         }
     }
 #endif
 
-#if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
-    // RECEIVING
-    // In this section, we'll check with the RFM69HCW to see
-    // if it has received any packets:
+    /* This sketch uses the manufacturer defaults in the si7210 for controlling
+    ** its output pin. Those defaults include hysteresis such that output toggles
+    ** reliably on approach and again on retreat of the magnet from the sensor.
+    ** However, experiments in the raingauge assembly gave some false positive
+    ** output toggles when the rocker toggles.
+    ** This sketch, to avoid those false positive counts, does not necessarily 
+    ** notify the gateway on each output toggle. Instead, this sketch enables the 
+    ** device to interrupt per manufacturer defaults (so battery life benefits 
+    ** from the very low power sleep mode) but sends rocker notifications based 
+    ** on the magnitude of the value of the magnetic field as read from the device.
+    ** On assembly, the magnet should be arranged so that its magnetic axis 
+    ** penetrates the sensor and maxes out its reading at plus or minus 
+    ** 16384. This sketch notifies when the output pin wakes it up, and, within
+    ** a few hundred milliseconds, the reading either exceedes NearThreshold (below),
+    ** or is below NearThreshold. It withholds notification even when 
+    ** the device interrupts, if the reading has not switched from one extreme 
+    ** to the other.
+    */
 
-    if (radio.receiveDone()) // Got one!
-    {
-        // Print out the information:
-        TimeOfWakeup = now; // extend sleep timer
-#if defined(USE_SERIAL)
-        Serial.print("received from node ");
-        Serial.print(radio.SENDERID, DEC);
-        Serial.print(", message [");
-
-        // The actual message is contained in the DATA array,
-        // and is DATALEN bytes in size:
-
-        for (byte i = 0; i < radio.DATALEN; i++)
-            Serial.print((char)radio.DATA[i]);
-
-        // RSSI is the "Receive Signal Strength Indicator",
-        // smaller numbers mean higher power.
-
-        Serial.print("], RSSI ");
-        Serial.println(radio.RSSI);
-#endif
-        // RFM69 ensures trailing zero byte, unless buffer is full...so
-        radio.DATA[sizeof(radio.DATA) - 1] = 0; // ...if buffer is full, ignore last byte
-        if (processCommand((const char *)&radio.DATA[0]))
+    bool rainActivated = false;
+    
+    // if magnetic sensor interrupt is active, switch it to its other sense
+    if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+    { /* I only have one job under this funnel, and I'm going to do it.*/
+        auto v = si7210.toggleOutputSense(); // do this only once per wakeup
+#if 0
+        if (enableSerial)
         {
-#if defined(USE_SERIAL)
-        	Serial.println("Received command accepted");
-#endif
-        }
-        if (radio.ACKRequested())
-        {
-            radio.sendACK();
-#if defined(USE_SERIAL)
-            Serial.println("ACK sent");
-#endif
-        }
-    }
-#endif
-
-    if (!TransmittedSinceSleep)
-    {
-        if (wakedByRocker || (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC))
-        {   /* transmit once per wakeup.
-            ** report rocker movement on any poll of ROCKER_INPUT_PIN LOW
-            ** during first MONITOR_ROCKER_MSEC. */
-            TransmittedSinceSleep = true;
-            int batt(0);
-#if defined(TELEMETER_BATTERY_V)
-            // 10K to VCC and (wired on board) 2.7K to ground
-            pinMode(BATTERY_PIN, INPUT_PULLUP); // sample the battery
-            batt = analogRead(BATTERY_PIN);
-            /* batt result means little in absolute terms, but its
-            ** history is telling. Failing cells have a pattern.*/
-            pinMode(BATTERY_PIN, INPUT); // turn off battery drain
-#endif
-            si7210.one();
-            auto magField = si7210.readMagField();
-
-            // read temperature data
-            auto temperature = tmp175.readTempCx16();
-
-            char sign = '+';
-            if (temperature < 0) {
-                temperature = -temperature;
-                sign = '-';
+            if (v == -1)
+                Serial.println("toggleOutputSense failed");
+            else
+            {
+                Serial.print("toggleoutputsense = 0x");
+                Serial.println(v, HEX);
             }
-            else if (temperature == 0.f)
-                sign = ' ';
+        }
+#endif
 
-            auto whole = temperature >> 4;
-            auto frac = temperature & 0xF;
-            frac *= 100;
-            frac >>= 4;
+        for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
+        {
+            delay(1); // give ROCKER_INPUT_PIN time to respond
+            if (digitalRead(ROCKER_INPUT_PIN) != LOW)
+            {
+                rainActivated = true; // note: this is overridden below if the Far/Near logic is compiled
+                break; // normally this happens with j == 0
+            }
+        }
+        TimeOfWakeup = now; // extend sleep timer
+    }
 
-            static char buf[64];
-            sprintf(buf, "C:%u, B:%d, T:%c%d.%02d, RG: %d F: %d",
-                sampleCount++,
-                batt,
-                sign, whole,
-                frac,
-                (int)(wakedByRocker ? 1 : 0),
-                magField
-            );
+
+    si7210.one();
+    delayMicroseconds(si7210.CONVERSION_TIME_MICROSECONDS);
+    Si7210::MagField_t magField;
+    
+    for (int i = 0;;)
+    {
+        magField = si7210.readMagField();
+        if (magField != Si7210::INVALID_FIELD_READING)
+            break;
+        if (++i >= MAX_MAGFIELD_POLL)
+            return; // do loop() again
+    }
+
+#if 1
+    const Si7210::MagField_t FarThreshold = Si7210::getMaxAmplitude() / 16;
+    const Si7210::MagField_t NearThreshold = Si7210::getMaxAmplitude() / 2;
+    Si7210::MagField_t amplitude = magField;
+    if (amplitude < 0)
+        amplitude = -amplitude;
+    bool MagIsClose = amplitude > NearThreshold;
+    bool MagIsFar = amplitude < FarThreshold;
+     
+    rainActivated = !(!MagIsClose && !MagIsFar); // only report when in the bottom quarter and top quarter of the sensor range
+    if (!rainActivated)
+        TimeOfWakeup = now; // extend sleep timer while magfield is "in between"
+    else
+        rainActivated = prevSentMagnetClose ^ MagIsClose; // only report when its changed
+    if (rainActivated)
+        prevSentMagnetClose = MagIsClose;
+#endif
+
+    if (rainActivated ||
+        (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
+    {   /* transmit once per wakeup.
+        ** report rocker movement on any poll of ROCKER_INPUT_PIN LOW
+        ** during first MONITOR_ROCKER_MSEC. */
+        TransmittedSinceSleep = true;
+        int batt(0);
+#if defined(TELEMETER_BATTERY_V)
+        // 10K to VCC and (wired on board) 2.7K to ground
+        pinMode(BATTERY_PIN, INPUT_PULLUP); // sample the battery
+        batt = analogRead(BATTERY_PIN);
+        /* batt result means little in absolute terms, but its
+        ** history is telling. Failing cells have a pattern.*/
+        pinMode(BATTERY_PIN, INPUT); // turn off battery drain
+#endif
+        // read temperature data
+        auto temperature = tmp175.readTempCx16();
+
+        char sign = '+';
+        if (temperature < 0) {
+            temperature = -temperature;
+            sign = '-';
+        }
+        else if (temperature == 0.f)
+            sign = ' ';
+
+        int whole = temperature >> 4;
+        int frac = temperature & 0xF;
+        frac *= 100;
+        frac >>= 4;
+
+        static char buf[64];
+        sprintf(buf, "C:%u, B:%d, T:%c%d.%02d, RG: %d F: %d",
+            sampleCount++,
+            batt,
+            sign, whole,
+            frac,
+            static_cast<int>(rainActivated ? 1 : 0),
+            static_cast<int>(magField)
+        );
 #if defined(USE_SERIAL)
+        if (enableSerial)
             Serial.println(buf);
 #endif
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
-            if (enableRadio)
-                radio.sendWithRetry(GATEWAY_NODEID, buf, strlen(buf));
+        if (enableRadio)
+            radio.sendWithRetry(GATEWAY_NODEID, buf, strlen(buf));
 #endif
-        }
     }
 
     if (now - TimeOfWakeup > ListenAfterTransmitMsec)
     {
         TransmittedSinceSleep = false;
+        if (getOnloopSerialDisable())
+            SetSerialEnabled(false);
         SleepTilNextInterrupt();
         TimeOfWakeup = millis();
         ListenAfterTransmitMsec = NormalListenAfterTransmit;
@@ -437,11 +688,16 @@ namespace {
     {
 
 #if defined(USE_SERIAL)
-        Serial.print("sleep for count=");
-        Serial.println(SleepLoopTimerCount);
-        Serial.end();// wait for finish and turn off pins before sleep
+        if (enableSerial)
+        {
+            Serial.print("sleep for count=");
+            Serial.println(SleepLoopTimerCount);
+            Serial.flush();// wait for finish and turn off pins before sleep
+            Serial.end();
+        }
         pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
-        pinMode(1, INPUT);
+        digitalWrite(TXD_PIN, HIGH);
+        pinMode(TXD_PIN, OUTPUT); // TXD hold steady
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
@@ -453,7 +709,7 @@ namespace {
         analogRead(BATTERY_PIN); // doesn't shut down the band gap until we USE ADC
 #endif
 
-        si7210.sleep();
+        si7210.sleep(false);
 
         // sleep mode power supply current measurements indicate this appears to be redundant
         power_all_disable(); // turn off everything
@@ -464,13 +720,13 @@ namespace {
         // this uses R1 and C1 to ground
         while (count < SleepLoopTimerCount)
         {
+            if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+                break;
             power_timer0_enable(); // delay() requires this
             pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
             digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
             delay(10); // Charge the 1uF
             pinMode(TIMER_RC_CHARGE_PIN, INPUT);
-            if (digitalRead(ROCKER_INPUT_PIN) == LOW)
-                break;
             cli();
             power_timer0_disable(); // timer0 powered down again
             attachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN), sleepPinInterrupt, LOW);
@@ -494,15 +750,19 @@ namespace {
 #endif
 
 #if defined(USE_SERIAL)
-        Serial.begin(9600);
-        Serial.print(count, DEC);
-        Serial.println(" wakeup");
+        if (enableSerial)
+        {
+            Serial.begin(SERIAL_PORT_BAUDS);
+            Serial.print(count, DEC);
+            Serial.println(" wakedup");
+        }
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
         radio.SPIon();
 #endif
         si7210.wakeup();
+        si7210.one(); // Output pin processing not working until this
         return count;
     }
 
