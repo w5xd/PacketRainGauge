@@ -1,4 +1,5 @@
 #pragma once
+// 2wire interface for TMP175 temperature sensor
 class TMP175 {
 public:
     TMP175(uint8_t addr) : SlaveAddress(addr)

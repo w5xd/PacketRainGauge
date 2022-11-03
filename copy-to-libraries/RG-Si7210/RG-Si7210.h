@@ -22,12 +22,14 @@ public:
     Si7210(uint8_t addr) : SlaveAddress(addr), AmSleeping(false)
     {}
 
+    // decode the single-byte device setting to human understandable
     static uint16_t threshold(uint8_t sw_op) {
         sw_op &= 0x7f;
         uint16_t ret = 16 + (sw_op & 0xF);
         ret <<= (sw_op >> 4) & 0x7;
         return ret;
     }
+    // decode the single-byte device setting to human understandable
     static uint16_t hysteresis(uint8_t sw_hyst)
     {
         sw_hyst &= 0x3f;
@@ -42,7 +44,6 @@ public:
         wakeup();
         resetToOTP();
         wakeup();   
-        // grab the sw_op from OTP cuz misreading it later leads to permanent sleep
         Wire.beginTransmission(SlaveAddress);
         Wire.write(SWOP_REGISTER_ADDRESS);
         Wire.endTransmission(false);
@@ -66,10 +67,10 @@ public:
     {
     // see 12.2 Setting an Interrupt: 
     // https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf
-        static const char USE_OTP_DETECT_SETTINGS = 8;
+        const char RETAIN_SWOP_SWHYST_SETTINGS_NOT_OTP = 8;
         Wire.beginTransmission(SlaveAddress);
         Wire.write(POWER_CONTROL_ADDRESS);
-        Wire.write(fromOTP ? 0 : USE_OTP_DETECT_SETTINGS );
+        Wire.write(fromOTP ? 0 : RETAIN_SWOP_SWHYST_SETTINGS_NOT_OTP );
         Wire.endTransmission();
         AmSleeping = true;
         return 0;

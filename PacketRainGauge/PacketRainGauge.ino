@@ -17,7 +17,7 @@
 * EEPROM raw=0x30 hysteresis = 512
 * si7210 tamper= 63
 * 
-* Commands to set the si7210 as above:
+* Serial port Commands to set the si7210 as above:
 * SetSWOP 65
 * SetSWHYST 30
 */
@@ -69,7 +69,7 @@ namespace {
     const int RC_RLY_INTERRUPT_PIN = 3;
     const int ROCKER_INPUT_PIN = 17;
 
-    /* The Pro Mini has two interrupt pinsthat have the right features
+    /* The Pro Mini has two interrupt pins that have the right features
     ** for responding to the three sources in this design, INT0 and INT1:
     ** 1. the RFM69
     ** 2. the R1/C1 sleep timer
