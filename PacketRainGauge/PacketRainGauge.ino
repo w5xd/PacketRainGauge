@@ -424,7 +424,7 @@ namespace {
             setRaingaugeSwHyst(0xff);
             setRaingaugeSwop(0xff);
             si7210.resetToOTP();
-            si7210.wakeup();
+            si7210.wakeup(); // resetToOTP set sleep()
         }
         return false;
     }
@@ -538,16 +538,16 @@ void loop()
     ** some false positive output toggles when the rocker toggles.
     ** This sketch, to avoid those false positive counts, does not necessarily 
     ** notify the gateway on each output toggle. Instead, this sketch enables the 
-    ** device to interrupt per manufacturer defaults (so battery life benefits 
+    ** device to sleep and then interrupt (so battery life benefits 
     ** from the very low power sleep mode) but sends rocker notifications based 
     ** on the magnitude of the value of the magnetic field as read from the device.
     ** On assembly, the magnet should be arranged so that its magnetic axis 
     ** penetrates the sensor and maxes out its reading at plus or minus 
     ** 16384. This sketch notifies when the output pin wakes it up, and, within
     ** a few hundred milliseconds, the reading either exceedes NearThreshold (below),
-    ** or is below NearThreshold. It withholds notification even when 
-    ** the device interrupts, if the reading has not switched from one extreme 
-    ** to the other.
+    ** or is below FarThreshold. It withholds notification even when 
+    ** the device interrupts, if the reading is between those, or has not switched 
+    ** from one extreme to the other.
     */
 
     bool rainActivated = false;
@@ -556,7 +556,7 @@ void loop()
     if (digitalRead(ROCKER_INPUT_PIN) == LOW)
     { /* I only have one job under this funnel, and I'm going to do it.*/
         auto v = si7210.toggleOutputSense(); // do this only once per wakeup
-#if 0
+#if 0 // for debugging
         if (enableSerial)
         {
             if (v == -1)
@@ -580,7 +580,6 @@ void loop()
         }
         TimeOfWakeup = now; // extend sleep timer
     }
-
 
     si7210.one();
     delayMicroseconds(si7210.CONVERSION_TIME_MICROSECONDS);
@@ -615,10 +614,8 @@ void loop()
 
     if (rainActivated ||
         (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
-    {   /* transmit once per wakeup.
-        ** report rocker movement on any poll of ROCKER_INPUT_PIN LOW
-        ** during first MONITOR_ROCKER_MSEC. */
-        TransmittedSinceSleep = true;
+    {   
+        TransmittedSinceSleep = true; /* Transmit at least once per wakeup. */
         int batt(0);
 #if defined(TELEMETER_BATTERY_V)
         // 10K to VCC and (wired on board) 2.7K to ground
@@ -664,7 +661,7 @@ void loop()
     }
 
     if (now - TimeOfWakeup > ListenAfterTransmitMsec)
-    {
+    {	// go to sleep. with R1/C1 as specified will be about 100 seconds
         TransmittedSinceSleep = false;
         if (getOnloopSerialDisable())
             SetSerialEnabled(false);
@@ -739,8 +736,6 @@ namespace {
             sei();
             count += 1;
         }
-
-#else
 #endif
 
         power_all_enable();
@@ -762,7 +757,7 @@ namespace {
         radio.SPIon();
 #endif
         si7210.wakeup();
-        si7210.one(); // Output pin processing not working until this
+        si7210.one(); // Output pin check won't be updated in loop() without this
         return count;
     }
 
