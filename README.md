@@ -29,7 +29,7 @@ contacts that close as
 the magnet is in proximity. The original relay sensor was positioned for closest approach 
 to the relay
 as the rocker passed top dead center
-in both directions, which means the rocker was moving relatively quickly as the realy sensed it.  
+in both directions, which means the rocker was moving relatively quickly as the relay sensed it.  
 
 The
 Si7210 hall effect magnetic sensor is used in this design instead of a reed relay. The Si7210
@@ -56,7 +56,7 @@ about the exact problem of this design: replacing a reed relay with an Si7210&md
 magnet axis and sensor geometry are related: 
 <a href='https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf'>
 https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf<a>.
-A K&J Magnetics B422 magnet conveniently matches the original magnet's dimensions, and even has its
+A K&J Magnetics B422 magnet conveniently matches the original magnet's dimensions, and has its
 poles aligned so that its
 pole axis can be oriented to penetrate the Si7210 when mounted in the original rocker.
 
