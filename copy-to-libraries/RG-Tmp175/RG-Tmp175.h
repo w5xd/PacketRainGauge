@@ -8,10 +8,10 @@ public:
     {
         Wire.beginTransmission(SlaveAddress);
         writePointerRegister(CONFIGURATION_REG);
-        // R1 without R0 means 11 bit conversion (1/8 degree C) in 110msec
+        // R0 without R1 means 10 bit conversion (1/4 degree C) in 55msec
         // OS means one-shot
         // SD means shut down immediately after the one-shot conversion
-        uint8_t config = OS | SD | R1;
+        uint8_t config = OS | SD | R0;
         Wire.write(config);
         Wire.endTransmission();
         delay(SETTLE_TIME_MSEC); // let temperature ADC settle--depends on R0/R1
@@ -71,7 +71,7 @@ private:
         F0 = 1 << 3, F1 = 1 << 4,
         R0 = 1 << 5, R1 = 1 << 6, OS = 1 << 7
     };
-    enum {SETTLE_TIME_MSEC = 150 };
+    enum {SETTLE_TIME_MSEC = 70 };
     void writePointerRegister(Pointer_t pointerReg)
     {
         Wire.write(static_cast<uint8_t>(pointerReg));
