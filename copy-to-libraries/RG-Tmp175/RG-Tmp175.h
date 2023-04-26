@@ -4,7 +4,8 @@ class TMP175 {
 public:
     TMP175(uint8_t addr) : SlaveAddress(addr)
     {}
-    int16_t readTempCx16()
+
+    void startReadTemperature()
     {
         Wire.beginTransmission(SlaveAddress);
         writePointerRegister(CONFIGURATION_REG);
@@ -13,8 +14,16 @@ public:
         // SD means shut down immediately after the one-shot conversion
         uint8_t config = OS | SD | R0;
         Wire.write(config);
-        Wire.endTransmission();
-        delay(SETTLE_TIME_MSEC); // let temperature ADC settle--depends on R0/R1
+        Wire.endTransmission(); 
+        MsecWhenStartedTemperature = millis();
+    }
+
+    int16_t finishReadTempCx16()
+    {
+        long tmp175Delay = millis() - MsecWhenStartedTemperature;
+        tmp175Delay = SETTLE_TIME_MSEC - tmp175Delay;
+        if (tmp175Delay > 0)
+            delay(tmp175Delay);
 
         Wire.beginTransmission(SlaveAddress);
         writePointerRegister(TEMPERATURE_REG);
@@ -36,6 +45,18 @@ public:
         }
         return tempCtimes256 >> 4;
     }
+
+    void delayForADC()
+    {
+        delay(SETTLE_TIME_MSEC); // let temperature ADC settle--depends on R0/R1
+    }
+
+    int16_t readTempCx16()
+    {
+        startReadTemperature();
+        delayForADC();
+        return finishReadTempCx16();
+    }
     float scale() const { return 1/16.f;}
     void setup()
     {
@@ -45,6 +66,7 @@ public:
         Wire.write(config);
         Wire.endTransmission();
     }
+
     void dump()
     {
         for (int i = 0; i < NUM_POINTERS; i += 1)
@@ -63,6 +85,7 @@ public:
             Serial.println();
         }
     }
+    enum {SETTLE_TIME_MSEC = 70 };
 private:
     const uint8_t SlaveAddress;
     enum Pointer_t { TEMPERATURE_REG, CONFIGURATION_REG, T_LOW_REG, T_HIGH_REG, NUM_POINTERS};
@@ -71,10 +94,10 @@ private:
         F0 = 1 << 3, F1 = 1 << 4,
         R0 = 1 << 5, R1 = 1 << 6, OS = 1 << 7
     };
-    enum {SETTLE_TIME_MSEC = 70 };
     void writePointerRegister(Pointer_t pointerReg)
     {
         Wire.write(static_cast<uint8_t>(pointerReg));
     }
+    unsigned long MsecWhenStartedTemperature;
 
 };

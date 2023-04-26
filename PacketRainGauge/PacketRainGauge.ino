@@ -316,6 +316,8 @@ void setup()
     Serial.print(SET_SERIALONLOOP);
     Serial.print(" ");
     Serial.println(getOnloopSerialDisable() ? "ON" : "OFF");
+
+    tmp175.startReadTemperature();
 }
 
 /* Power management:
@@ -626,7 +628,7 @@ void loop()
         pinMode(BATTERY_PIN, INPUT); // turn off battery drain
 #endif
         // read temperature data
-        auto temperature = tmp175.readTempCx16();
+        auto temperature = tmp175.finishReadTempCx16();
 
         char sign = '+';
         if (temperature < 0) {
@@ -756,6 +758,7 @@ namespace {
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
         radio.SPIon();
 #endif
+        tmp175.startReadTemperature();
         si7210.wakeup();
         si7210.one(); // Output pin check won't be updated in loop() without this
         return count;
