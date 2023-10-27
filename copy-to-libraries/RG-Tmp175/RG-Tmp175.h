@@ -2,7 +2,7 @@
 // 2wire interface for TMP175 temperature sensor
 class TMP175 {
 public:
-    TMP175(uint8_t addr) : SlaveAddress(addr)
+    TMP175(uint8_t addr, unsigned SettleTimeMsec = SETTLE_TIME_MSEC) : SlaveAddress(addr), SettleTimeMsec(SettleTimeMsec)
     {}
 
     void startReadTemperature()
@@ -21,7 +21,7 @@ public:
     int16_t finishReadTempCx16()
     {
         long tmp175Delay = millis() - MsecWhenStartedTemperature;
-        tmp175Delay = SETTLE_TIME_MSEC - tmp175Delay;
+        tmp175Delay = static_cast<long>(SettleTimeMsec) - tmp175Delay;
         if (tmp175Delay > 0)
             delay(tmp175Delay);
 
@@ -48,7 +48,7 @@ public:
 
     void delayForADC()
     {
-        delay(SETTLE_TIME_MSEC); // let temperature ADC settle--depends on R0/R1
+        delay(SettleTimeMsec); // let temperature ADC settle--depends on R0/R1
     }
 
     int16_t readTempCx16()
@@ -85,8 +85,8 @@ public:
             Serial.println();
         }
     }
-    enum {SETTLE_TIME_MSEC = 70 };
 private:
+    enum {SETTLE_TIME_MSEC = 60 };
     const uint8_t SlaveAddress;
     enum Pointer_t { TEMPERATURE_REG, CONFIGURATION_REG, T_LOW_REG, T_HIGH_REG, NUM_POINTERS};
     enum Configuration_t {
@@ -99,5 +99,5 @@ private:
         Wire.write(static_cast<uint8_t>(pointerReg));
     }
     unsigned long MsecWhenStartedTemperature;
-
+    unsigned SettleTimeMsec;
 };
