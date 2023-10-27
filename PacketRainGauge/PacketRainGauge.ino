@@ -203,6 +203,8 @@ void setup()
     // Open a serial port so we can send keystrokes to the module:
     enableSerial = true;
     Serial.begin(SERIAL_PORT_BAUDS);
+    delay(100);
+    Serial.println("Packet Rain Gauge REV02");
     Serial.print("Node ");
     Serial.print(radioConfiguration.NodeId(), DEC);
     Serial.print(" on network ");
