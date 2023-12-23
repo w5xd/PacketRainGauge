@@ -141,13 +141,18 @@ Its circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
 The Si7210 is mounted to the <i>bottom</i> of the PCB. This is the only part on the bottom.
 I used an SMD oven to mount it first (and nothing else in the oven with it.) After cooling it off,
 then flipped the board over
-and used the oven again to mount all the top side SMD parts. The RFM69 is supposed to be
+and used the oven again to mount all the top side SMD parts. While the ExpressPCB process provides
+a solder paste mask in its gerber files, I found it easier just to use a very small stick of some sort
+(a 0.050" allen key, for example) to dab tiny bits of paste on the solder pads.
+
+The RFM69 is documented to be
 oven-safe, but I have destroyed at least one (maybe not because of the oven?) and its
 easy enough to hand solder its 100 thou wide solder pads.
 
 Setting up the Arduino requires programming the part, and also requires 
 serial port commands to configure the radio parameters. The permanent connector on
-the board for its serial port is a hole pattern that requires a pogo adapter to access. The standard
+the board for its serial port is a hole pattern that requires a pogo adapter to access. 
+The standard
 programming header on the Arduino Pro Mini, the one along the shorter side of the board,
 also can be used to program it, but only once because
 you'll have to cut off all the pins to mount it in the enclosure.
