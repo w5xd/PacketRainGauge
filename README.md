@@ -113,7 +113,7 @@ in this project:
 <ul>
 <li>The 3.3V version of the Pro Mini is <b>required</b>.
 <li>Jumper SJ1 (top side, close to the GND pad) must be desoldered to remove the red power LED's power drain.
-<li>The bottom side pullup positions, R1 and R3, must each have a 4.7K 
+<li>The bottom side i2c pullup positions, R1 and R3, must each have a 4.7K 
 resistor installed. Two SMD 0603 size resistors just fit inside a hole
 in the PCB designed to clear them.
 <li>The 330 ohm resistor just inside pins D11 and D12 must be removed (or cut with a diagonal 
