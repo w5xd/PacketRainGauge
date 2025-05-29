@@ -1,2 +1,4 @@
 *.log
 *~
+*.FCBak
+*.st*p

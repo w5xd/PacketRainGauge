@@ -48,6 +48,12 @@
 //#define SLEEP_RFM69_ONLY /* for testing only */
 #define USE_SERIAL
 #define TELEMETER_BATTERY_V
+//#define SERIAL_DEBUG_OUTPUT
+
+#define FAR_THRESHOLD(X) X/8
+#define NEAR_THRESHOLD(x) x / 2
+
+#define REVISION "REV03"
 
 #if defined(USE_RFM69)
 #include <RFM69.h>
@@ -67,6 +73,7 @@ namespace {
     const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
     const int TXD_PIN = 1;
     const int RC_RLY_INTERRUPT_PIN = 3;
+    const int RC_STATUS_PIN = 16;   // not used, but on REV02 of the PCB
     const int ROCKER_INPUT_PIN = 17;
 
     /* The Pro Mini has two interrupt pins that have the right features
@@ -204,7 +211,7 @@ void setup()
     enableSerial = true;
     Serial.begin(SERIAL_PORT_BAUDS);
     delay(100);
-    Serial.println("Packet Rain Gauge REV02");
+    Serial.println("Packet Rain Gauge " REVISION);
     Serial.print("Node ");
     Serial.print(radioConfiguration.NodeId(), DEC);
     Serial.print(" on network ");
@@ -302,11 +309,23 @@ void setup()
     }
     Serial.println(hysteresis);
 
+    /* This sketch allows setting the si7210 parameters arbitrarily....
+    ** but here are some hints for setting it up.
+    ** The 3D prints arrange for the sensor to be very close to magnet when one
+    ** side of the bucket is down. That gives a maximum, or near maximum, reading to the sensor
+    ** The other buckets gives some lower reading, depending on how far away the 3D print can make the
+    ** magnet travel.
+    ** So...set the "Swop" (which is actually the threshold) to a large number. 0x7E is the largest. 
+    ** That means that the magnet needs to be near enough to get that large reading.
+    ** Set the hysteresis LOW (a nice low number is 0). That will give an interrupt very close to the
+    ** the threshold value. That is, an interrupt as the bucket brings the magnet close, and then again
+    ** as the bucket starts to move away.
+    */
     int tamper = si7210.getSwTamper();
     Serial.print("si7210 tamper= ");
     Serial.println(tamper);
 
-
+    si7210.setFieldPolSel(0);
     si7210.one();
     if (prevSentMagnetClose = (digitalRead(ROCKER_INPUT_PIN) == LOW))
     {
@@ -356,8 +375,8 @@ namespace {
     {
         static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
         static const char SET_SERIAL[] = "SetSerial";
-        static const char SET_THRESHOLD[] = "SetSWOP";
-        static const char SET_HYSTERESIS[] = "SetSWHYST";
+        static const char SET_THRESHOLD[] = "SetSWOP"; // HEX number range 00 : 7F where 7f is special case of "latch mode" where  
+        static const char SET_HYSTERESIS[] = "SetSWHYST"; // argument is HEX number range 00 : 3F, 3F is special case for ZERO
         static const char SET_TOOTP[] = "SetToOTP";
         static const char VER[] = "VER";
         const char *q = pCmd;
@@ -559,20 +578,7 @@ void loop()
     // if magnetic sensor interrupt is active, switch it to its other sense
     if (digitalRead(ROCKER_INPUT_PIN) == LOW)
     { /* I only have one job under this funnel, and I'm going to do it.*/
-        auto v = si7210.toggleOutputSense(); // do this only once per wakeup
-#if 0 // for debugging
-        if (enableSerial)
-        {
-            if (v == -1)
-                Serial.println("toggleOutputSense failed");
-            else
-            {
-                Serial.print("toggleoutputsense = 0x");
-                Serial.println(v, HEX);
-            }
-        }
-#endif
-
+        si7210.toggleOutputSense(); // do this only once per wakeup
         for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
         {
             delay(1); // give ROCKER_INPUT_PIN time to respond
@@ -599,21 +605,39 @@ void loop()
     }
 
 #if 1 // compute rainActivated using the magnetic field amplitude rather than the si7210 output pin
-    const Si7210::MagField_t FarThreshold = Si7210::getMaxAmplitude() / 16;
-    const Si7210::MagField_t NearThreshold = Si7210::getMaxAmplitude() / 2;
+    const Si7210::MagField_t FarThreshold = FAR_THRESHOLD(Si7210::getMaxAmplitude());
+    const Si7210::MagField_t NearThreshold = NEAR_THRESHOLD(Si7210::getMaxAmplitude());
     Si7210::MagField_t amplitude = magField;
     if (amplitude < 0)
         amplitude = -amplitude;
     bool MagIsClose = amplitude > NearThreshold;
     bool MagIsFar = amplitude < FarThreshold;
+
+#if defined(SERIAL_DEBUG_OUTPUT) && defined(USE_SERIAL) // for debugging
+    static auto lastPrinted = millis();
+    static const unsigned PRINT_INTERVAL_MSEC = 200;
+    auto toPrint = millis();
+    if (toPrint - lastPrinted > PRINT_INTERVAL_MSEC)
+    {
+        Serial.print("magField = "); Serial.println(magField);
+    }
+#endif
      
-    rainActivated = !(!MagIsClose && !MagIsFar); // only report when in the bottom quarter and top quarter of the sensor range
+    rainActivated = !(!MagIsClose && !MagIsFar); // only report farther than FAR_THRESHOLD or nearer than NEAR_THRESHOLD
     if (!rainActivated)
         TimeOfWakeup = now; // extend sleep timer while magfield is "in between"
     else
         rainActivated = prevSentMagnetClose ^ MagIsClose; // only report when its changed
     if (rainActivated)
         prevSentMagnetClose = MagIsClose;
+#endif
+
+#if defined(SERIAL_DEBUG_OUTPUT) && defined(USE_SERIAL) // for debugging
+    if (toPrint - lastPrinted > PRINT_INTERVAL_MSEC)
+    {
+    Serial.print("rainActivated = "); Serial.println(static_cast<int>(rainActivated));
+    lastPrinted = toPrint;
+    }
 #endif
 
     if (rainActivated ||
@@ -673,6 +697,19 @@ void loop()
         TimeOfWakeup = millis();
         ListenAfterTransmitMsec = NormalListenAfterTransmit;
     }
+
+    #if 0
+    #if defined(USE_SERIAL)
+    {
+        auto pinInt = digitalRead(RC_RLY_INTERRUPT_PIN);
+        auto pinSi7210 = digitalRead(ROCKER_INPUT_PIN);
+        Serial.print("pinInt = ");
+        Serial.print(pinInt);
+        Serial.print(", pin7210=");
+        Serial.println(pinSi7210);
+    }
+    #endif
+    #endif
 }
 
 #if !defined(SLEEP_WITH_TIMER2)
@@ -752,8 +789,7 @@ namespace {
         if (enableSerial)
         {
             Serial.begin(SERIAL_PORT_BAUDS);
-            Serial.print(count, DEC);
-            Serial.println(" wakedup");
+            Serial.println(F("******waked up*******"));
         }
 #endif
 

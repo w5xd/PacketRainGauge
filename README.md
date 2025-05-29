@@ -2,17 +2,20 @@
 
 This design is for a device that telemeters a packet when a magnet approaches, and
 again when it retreats from a hall effect sensor (Si7210). It consists
-of a PCB design, an Arduino sketch, and a 3D
-printable PCB enclosure to retrofit inside a discarded rain gauge funnel
+of a PCB design, an Arduino sketch, and two variations on a 3D
+printable PCB enclosure. One enclosure is designed to retrofit inside a discarded rain gauge funnel
 from an Oregon Scientific RGR126N Wireless Rain Gauge. If you don't 
-have an RGR126N to retrofit, its left as an exercise
-for the reader to design a funnel, rocker, and weather-tight
-battery compartment.
+have an RGR126N to retrofit, there is included a full 3D printable outdoor unit, a remix of this 
+<a href='https://www.thingiverse.com/thing:4725413'>thingiverse rain gauge</a>.
 
 This unit telemeters to 
-<a href='https://github.com/w5xd/PacketGateway'>an open-source packet gateway</a>. 
+<a href='https://github.com/w5xd/PacketGateway'>an open-source packet gateway</a>.  Separately, or 
+concurrently, the <a href='https://github.com/w5xd/WWVBclock'>WWVB clock</a> can monitor the packet
+transmissions from this rain gauge.
 
-The original Oregon Scientific rain gauge mechanical design is simple. A funnel directs rainfall into a rocker
+
+<h3>Oregon Scientific Retrofit</h3>
+The original Oregon Scientific rain gauge mechanical design is just a funnel that directs rainfall into a rocker
 that is centered below the funnel. The rocker has two identical cups arranged on a see-saw. After 1mm
 of rainfail, the higher cup has enough weight to rock the see-saw. The higher
 one falls to become the lower one and dumps its water from the now lowered cup. The new position leaves 
@@ -47,7 +50,8 @@ as the old one, but not quite at the
 exact same rocker positions.
 
 
- The original magnet cannot be retained because the reed relay required the magnet's
+ The original magnet cannot be used with this hall effect sensor because the reed relay 
+required the magnet's
 pole axis orientation be parallel to the axis of the reed relay. That pole
 orientation is not appropriate for the hall effect sensor on this
 replacement PCB. For the Si7210 sensor to best sense proximity, the pole axis should penetrate the sensor.
@@ -67,7 +71,7 @@ no luck running the Oregon Scientific device using lithium AA cells, but this de
 well with them and gets the much longer battery life with the lithium cells'
  much larger Ampere-hour capacity compared to alkaline.
 
-This complete retrofit parts list is:
+This retrofit parts list is:
 <ul>
 <li> The original funnel's plastic parts minus the two PCBs, and with the
 original magnet removed from the rocker. It was glued in place and a small screwdriver can pry it out.
@@ -83,6 +87,27 @@ as the one of the original PCBs&mdash;the one facing the magnet on the rocker.
 battery's original ribbon cable is replaced with just a pair. +3VDC and GND wires are routed 
 to the replacement PCB. This design can use either
 alkaline or lithium cells. 
+</ul>
+
+<h3>3D Print the Outdoor Assembly</h3>
+As an alternative to the Oregon Scientific retrofit, the CAD directory in this repo has 3D 
+models for the parts needed to all the outdoor parts.
+STL files are in the thingiverse posting of this remix. All the STLs can be regenerated using
+OpenSCAD and FreeCAD.
+The list of parts to print, starting with those designed with OpenSCAD is:
+<ul>
+<li><code>Pluviometer-base</code> (which requires the support enforcer <code>Pluviometer-base-supports</code></li>
+<li><code>Pluviometer-funnel-print</code></li>
+<li><code>Pluviometer-AA-print</code></li>
+<li><code>Pluviometer-bucket</code></li>
+<li>The flange I designed fits snugly on the top of the T-profile steel fence post
+I wanted to mount it. Unless you have the same fenceposts as me, you will have to use some other mount.
+<code>Pluviometer-flange-print</code></li>
+</ul>
+The parts designed with FreeCAD are:
+<ul>
+<li><code>Placement-sensor enclosureBody001</code></li>
+<li><code>Placement-sensor enclosureBody002</code></li>
 </ul>
 
 <h3>The Arduino sketch</h3>
@@ -111,12 +136,13 @@ The <a href='https://www.sparkfun.com/products/11114'>Arduino Pro Mini</a> requi
 following PCB options to be made in order to work 
 in this project:
 <ul>
-<li>The 3.3V version of the Pro Mini is <b>required</b>.
+<li>The 3.3V version of the Pro Mini is <b>required</b> as opposed to the 5V version.
 <li>Jumper SJ1 (top side, close to the GND pad) must be desoldered to remove the red power LED's power drain.
-<li>The bottom side i2c pullup positions, R1 and R3, must each have a 4.7K 
+<li>The bottom side i2c pullup positions, R1 and R3, can each have a 4.7K 
 resistor installed. Two SMD 0603 size resistors just fit inside a hole
-in the PCB designed to clear them.
-<li>The 330 ohm resistor just inside pins D11 and D12 must be removed (or cut with a diagonal 
+in the PCB designed to clear them. Alternatively, REV02 of the PCB has positions for 0804 pull up resistors
+if that is more convenient to install.
+<li>The 330 ohm resistor just inside pins D11 and D12 can be removed (or cut with a diagonal 
 cutter.) This
 disables the green LED to prevent its battery drain and load the the SCK line.
 </ul>
@@ -139,9 +165,9 @@ solder them one pin at a time.
 Its circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
 
 The Si7210 is mounted to the <i>bottom</i> of the PCB. This is the only part on the bottom.
-I used an SMD oven to mount it first (and nothing else in the oven with it.) After cooling it off,
-then flipped the board over
-and used the oven again to mount all the top side SMD parts. While the ExpressPCB process provides
+I used an SMD oven to mount it first (and nothing else in the oven with it.) After it cooled off, 
+I flipped the board over
+and used the oven again to bake the top side SMD parts. While the ExpressPCB process provides
 a solder paste mask in its gerber files, I found it easier just to use a very small stick of some sort
 (a 0.050" allen key, for example) to dab tiny bits of paste on the solder pads.
 
@@ -199,36 +225,59 @@ to program the Arduino, but the radio parameters
 can only be configured through the serial port.
 
 <h3>Enclosure</h3>
-The enclosure prints as two parts. 
-The base has three mounting holes matching the original rocker-mounted PCB. 
-And it has three holes
+Both enclosure designs, the retrofit and the full outdoor unit, print as two parts. 
+The retrofit base has three mounting holes matching the original rocker-mounted PCB. 
+The other part, for either design, has three holes
 for wires: one each for the radio antenna, ground, and 3.3V. 
-The top slides over the base. 
 
 
 Once the device is configured, use a silicon sealant
 on the joints between the base and cover, and also to seal the wire holes.
 Consider the enclosure as disposable. If you use a silicon rubber sealant,
 you might be able to use a box cutter to open it if you need to reprogram
-the Arduino. Otherwise, plan on 3D printing a replacement.
+the Arduino. Otherwise, plan on 3D printing a replacement should you ever
+open the PCB enclsure.
  
-I substituted #4 brass wood screws for the original steel screws that held
+On the retrofit, I substituted #4 brass wood screws for the original steel screws that held
 the PCB inside the funnel assembly, because I suspected that the strong
 magnet attraction on them might chage the mechanical balance of the rocker
  and thus change the calibration.
 
+The full outdoor unit needs the following commercially available parts to house
+the dual cell AA battery:
+<ol>
+<li> <a href='https://www.mouser.com/ProductDetail/12BH222-GR'>Eagle Devices 12BH222-GR</a>. Be careful
+with the width if you try to substitute a part. the 12BH222 is comparatively narrow, and
+just fits inside the AA holder 3D printed part.
+<li> <a href='https://www.mcmaster.com/catalog/131/4021/2418T16'>3/32" width, Dash Number 141 ORing (2 1/2" OD)</a>
+<li> Quantity 7 #3-48 x 3/8" socket head screw. (#2-56 x 3/8" socket head also fits the 3D print)
+<li> Quantity 7 #3-48 hex nuts. (#2-56 nut also fits the 3D print)
+<li> The base/flange mount 3D parts have holes for quantity four #8-32 x 3/4" socket head screws and matching 8-32 hex nuts
+</ol>
+
 <h3 id="MAGNET_ORIENTATION">Magnet Orientation</h3>
 The B422 magnet's 1/4" dimension fits into the rocker mount in the obvious 1/4" slot dimension. 
 But there are
-four 1/8" sides to the magnet that might face up! The magnet has two opposing 1/8" faces 
-that are optimum when facing 
+four 1/8" sides to the magnet that might face the sensor! The magnet has two opposing 1/8" faces 
+that are optimum to face
 the sensor
- (the ones with the poles) and the other two 1/8" faces are far less effective! Another
-magnet with known poles helps figure out which face is right. Here
-are some: <a href='https://www.kjmagnetics.com/products.asp?cat=163'>
+ (the ones with the poles) and the other two 1/8" faces are far less effective to sense! Another
+magnet with known poles helps figure out which face is right: the face that sticks to 
+the other magnet IS one of the poles. Here
+are some hints: <a href='https://www.kjmagnetics.com/products.asp?cat=163'>
 https://www.kjmagnetics.com/products.asp?cat=163</a>.  The B422 may be mounted with either
 its North pole or South pole facing the PCB. (One orientation will permanently give positive
 readings in the magnetic sensor, the other will give negative.) You can also use the assembled
 PCB and sketch to read out the magnetic field with the magnet close. When oriented properly,
 it will read the maximum magnitude (either + or -, either pole axis works
 fine with the sketch) about 16000.
+
+<h3>How many signals per inch of rain?</h3>
+The Oregon Scientific part, by my measurement, sends an update every 1mm of rainfall. In the retrofit I did,
+I measured the device to send an update about every 1.2mm of rainfall. I attribute the difference
+to the extra weight of the B422 magnet compared to the original (as nothing else has changed.)
+
+The full outdoor unit, as <a href='https://www.thingiverse.com/thing:4725413'>documented by its original designer</a> 
+clicks every 0.15mm of rain. When I dripped a graduated cylinder of water through, a click about 0.15mm of 
+rain is what I get, just like the designer planned. Your mileage may vary. 
+
