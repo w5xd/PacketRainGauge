@@ -1,7 +1,7 @@
 # Packet Rain Gauge
 
 This design is for a device that telemeters a packet when a magnet approaches, and
-again when it retreats from a hall effect sensor (Si7210). It consists
+again when it retreats from a hall effect sensor model Si7210. It consists
 of a PCB design, an Arduino sketch, and two variations on a 3D
 printable PCB enclosure. One enclosure is designed to retrofit inside a discarded rain gauge funnel
 from an Oregon Scientific RGR126N Wireless Rain Gauge. If you don't 
@@ -92,7 +92,7 @@ alkaline or lithium cells.
 <h3>3D Print the Outdoor Assembly</h3>
 As an alternative to the Oregon Scientific retrofit, the CAD directory in this repo has 3D 
 models for the parts needed to all the outdoor parts.
-STL files are in the thingiverse posting of this remix. All the STLs can be regenerated using
+STL files are in the <a href='https://www.thingiverse.com/thing:7052595'>thingiverse posting of this remix</a>. All the STLs can be regenerated using
 OpenSCAD and FreeCAD.
 The list of parts to print, starting with those designed with OpenSCAD is:
 <ul>
