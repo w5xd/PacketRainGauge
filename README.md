@@ -2,21 +2,22 @@
 
 This design is for a device that telemeters a packet when a magnet approaches, and
 again when it retreats from a hall effect sensor model Si7210. It consists
-of a PCB design, an Arduino sketch, and two variations on a 3D
+of a Printed Circuit Board (PCB) design, an Arduino sketch, and two variations on a 3D
 printable PCB enclosure. One enclosure is designed to retrofit inside a discarded rain gauge funnel
 from an Oregon Scientific RGR126N Wireless Rain Gauge. If you don't 
-have an RGR126N to retrofit, there is included a full 3D printable outdoor unit, a remix of this 
+have an RGR126N to retrofit, there is included a full 3D printable outdoor unit, which I designed
+as a remix of this 
 <a href='https://www.thingiverse.com/thing:4725413'>thingiverse rain gauge</a>.
 
 This unit telemeters to 
 <a href='https://github.com/w5xd/PacketGateway'>an open-source packet gateway</a>.  Separately, or 
-concurrently, the <a href='https://github.com/w5xd/WWVBclock'>WWVB clock</a> can monitor the packet
+concurrently, this <a href='https://github.com/w5xd/WWVBclock'>WWVB clock</a> can monitor the packet
 transmissions from this rain gauge.
 
 
 <h3>Oregon Scientific Retrofit</h3>
-The original Oregon Scientific rain gauge mechanical design is just a funnel that directs rainfall into a rocker
-that is centered below the funnel. The rocker has two identical cups arranged on a see-saw. After 1mm
+The original Oregon Scientific rain gauge mechanical design is a funnel that directs rainfall into a rocker
+that is centered below the funnel. The rocker (called a "bucket" in the thingiverse design) has two identical cups arranged on a see-saw. After 1mm
 of rainfail, the higher cup has enough weight to rock the see-saw. The higher
 one falls to become the lower one and dumps its water from the now lowered cup. The new position leaves 
 the opposite
@@ -46,8 +47,7 @@ sketch is programmed to separately report the arrival and departure of the rocke
 each. The new magnet is mounted in the same fixture on the rocker as the old magnet. Its not quite the same mass: about 0.5g as
 opposed to 0.3g on my scale, so a calibration check is in order before putting it into service.
 The result is this design sends packets at the same rate per volume of rainfall
-as the old one, but not quite at the
-exact same rocker positions.
+as the old one, just not quite at the exact same rocker positions.
 
 
  The original magnet cannot be used with this hall effect sensor because the reed relay 
@@ -92,17 +92,18 @@ alkaline or lithium cells.
 <h3>3D Print the Outdoor Assembly</h3>
 As an alternative to the Oregon Scientific retrofit, the CAD directory in this repo has 3D 
 models for the parts needed to all the outdoor parts.
-STL files are in the <a href='https://www.thingiverse.com/thing:7052595'>thingiverse posting of this remix</a>. All the STLs can be regenerated using
+STL files are downloadable from the <a href='https://www.thingiverse.com/thing:7052595'>thingiverse 7052595 posting of this remix</a>. 
+All the STLs can be regenerated using a combination of
 OpenSCAD and FreeCAD.
 The list of parts to print, starting with those designed with OpenSCAD is:
 <ul>
-<li><code>Pluviometer-base</code> (which requires the support enforcer <code>Pluviometer-base-supports</code></li>
+<li><code>Pluviometer-base</code> (which requires the support enforcer <code>Pluviometer-base-supports</code>)</li>
 <li><code>Pluviometer-funnel-print</code></li>
 <li><code>Pluviometer-AA-print</code></li>
 <li><code>Pluviometer-bucket</code></li>
-<li>The flange I designed fits snugly on the top of the T-profile steel fence post
+<li>The flange I designed, <code>Pluviometer-flange-print</code>, fits snugly on the top of the T-profile steel fence post
 I wanted to mount it. Unless you have the same fenceposts as me, you will have to use some other mount.
-<code>Pluviometer-flange-print</code></li>
+</li>
 </ul>
 The parts designed with FreeCAD are:
 <ul>
@@ -110,9 +111,20 @@ The parts designed with FreeCAD are:
 <li><code>Placement-sensor enclosureBody002</code></li>
 </ul>
 
+The PCB enclosure parts need to geometrically mate with both the Pluviometer-base, designed in OpenSCAD,
+and the printed circuit board outline and hole pattern, which is available as a STEP model. The motivation for using FreeCAD
+is that it can be configured to create a model that itself depends on both the OpenSCAD model of the base and bucket,
+and the STEP model of the PCB. While the
+FreeCAD method for a dependency on a STEP model is simply its File/Import method, FreeCAD has a not-quite-obvious
+workflow for modeling dependencies on an STL mesh. Follow FreeCAD's File/Import of the OpenSCAD STL with
+its Parts Workbench's "Create Points From Geometry" method. The resulting points object can then be used
+to create DatumPoint and DatumPlane references that can, in turn, be used in Sketches. The caveat is that this workflow
+does not automatically accommodate subsequent changes to the OpenSCAD design. That is, any subsquent change in the OpenSCAD
+design requires the FreeCAD model to be completely recreated manually.
+
 <h3>The Arduino sketch</h3>
 The sketch sends a packet to the Packet Gateway every time the 
-magnet on the rocker arm arrives at, or departs from the
+magnet on the rocker arm either arrives at, or departs from the
 sensor. The message
 packet also contains a battery voltage measurement, the TMP175
 reading, and other details. The sketch also sends a packet after
@@ -122,7 +134,7 @@ once per 24 hours is enough. The temperature reading at the funnel is
 useful mainly for
 monitoring the condition of the funnel assembly. Direct
 sunlight on the funnel makes its value not representative
-of ambient air temperature. But the funnel must be 
+of ambient air temperature because the funnel must be 
 mounted in the open to be useful as a rain gauge.
 
 The gateway's processing of the rainfall messages is not part of this
@@ -132,7 +144,7 @@ text file that, in turn, can be read by the "bins" feature in <a href='http://ww
 
 <h2> Construction</h2>
 
-The <a href='https://www.sparkfun.com/products/11114'>Arduino Pro Mini</a> requires its 
+The <a href='https://www.sparkfun.com/products/11114'>Arduino Pro Mini</a> requires the 
 following PCB options to be made in order to work 
 in this project:
 <ul>
@@ -140,18 +152,19 @@ in this project:
 <li>Jumper SJ1 (top side, close to the GND pad) must be desoldered to remove the red power LED's power drain.
 <li>The bottom side i2c pullup positions, R1 and R3, can each have a 4.7K 
 resistor installed. Two SMD 0603 size resistors just fit inside a hole
-in the PCB designed to clear them. Alternatively, REV02 of the PCB has positions for 0804 pull up resistors
+in the PCB designed to clear them. Alternatively, REV02 of the PCB has positions for SMD
+0804  pull up resistors
 if that is more convenient to install.
 <li>The 330 ohm resistor just inside pins D11 and D12 can be removed (or cut with a diagonal 
 cutter.) This
-disables the green LED to prevent its battery drain and load the the SCK line.
+disables the green LED to prevent its battery drain and load on the SCK line.
 </ul>
 
 <h3>PCB considerations</h3>
 Mount the Arduino directly to the PCB without headers. Its important to:
 <ul>
 <li>center the Arduino on its holes in order to clear the I2C resistors mounted as above. 
-<li>minimize the solder bumps on the bottom side of the PCB so the assembly will later
+<li>minimize the solder bumps on the bottom side of the PCB so the assembly will 
 fit in the enclosure. I set the PCB on a flat surface, laid the Arduino board on top,
 then inserted headers from the top and soldered from the top first, so the pins just
 reach the bottom of the main PCB.
@@ -176,27 +189,28 @@ oven-safe, but I have destroyed at least one (maybe not because of the oven?) an
 easy enough to hand solder its 100 thou wide solder pads.
 
 Setting up the Arduino requires programming the part, and also requires 
-serial port commands to configure the radio parameters. The permanent connector on
-the board for its serial port is a hole pattern that requires a pogo adapter to access. 
-The standard
-programming header on the Arduino Pro Mini, the one along the shorter side of the board,
-also can be used to program it, but only once because
-you'll have to cut off all the pins to mount it in the enclosure.
+serial port commands to configure the radio parameters.  Connecting to the Pro Mini's
+serial port is a bit of a trick because the enclosure cannot accommodate a standard
+0.100" header soldered onto the board. One option is to solder on a header, program
+the sketch, set its parameters through the same serial port header,
+ and then cut the header off to install the Arduino in its enclosure.
 
-The permanent serial connector is based on the 6-pin ISP header layout on many
-Arduino boards. This PCB layout has those 6 pins in their standard layout,
-and adds 3 more. At least one 
-<a href=''>SparkFun ISP Pogo Adapter</a>
-can be used to setup this PCB. I had to make two of them. One wired to an 
-Arduino Pro Micro and programmed with the Arduino-as-ISP sketch, and the
-other wired to an FTDI USB serial breakout. In both cases, take care that
+Alternatively, the PCB has
+ a hole pattern that enables  a pogo adapter to access either 
+the standard ISP
+programming header on the Arduino Pro Mini, or, in a non-standard layout, the
+Arduino's serial port.
+
+The serial port pin layout on this PCB is 3 extra pins alongside the standard 6-pin ISP header.
+ I used a
+<a href=''>SparkFun ISP Pogo Adapter</a> with an FTDI USB serial breakout
+to both program the sketch onto this PCB, and to set its configurable parameters. Be sure
 you wire the 3.3VDC to the pogo! The RFM69 will be destroyed if you 
-wired the pogo to 5VDC.
+apply 5VDC.
 
-Position the Pogo Adapter on the 6 pins inside the yellow silkscreen rectangle to
-get the standard 6-pin ISP programming connectors. But position it
+Position the serial port pogo
 on the 6 pins aligned along the nearest edge of the PCB, and it connects to the Arduino's
-serial port pins. This second pin-out is not standard. The Pogo adapter as supplied
+serial port pins. The Pogo adapter as supplied
 has no connector on the ends of its wires. You can solder them to, for example,
 the <a href='https://www.sparkfun.com/products/13263'>SparkFun FT231X Breakout</a>.
 Note that on this particular FT231X breakout, you <b>must</b> change the power jumper to
@@ -231,12 +245,12 @@ The other part, for either design, has three holes
 for wires: one each for the radio antenna, ground, and 3.3V. 
 
 
-Once the device is configured, use a silicon sealant
+Once the Arduino is configured, use a silicon sealant
 on the joints between the base and cover, and also to seal the wire holes.
 Consider the enclosure as disposable. If you use a silicon rubber sealant,
 you might be able to use a box cutter to open it if you need to reprogram
-the Arduino. Otherwise, plan on 3D printing a replacement should you ever
-open the PCB enclsure.
+the Arduino. But plan to 3D print a replacement enclosure should you ever
+open it.
  
 On the retrofit, I substituted #4 brass wood screws for the original steel screws that held
 the PCB inside the funnel assembly, because I suspected that the strong
@@ -246,8 +260,9 @@ magnet attraction on them might chage the mechanical balance of the rocker
 The full outdoor unit needs the following commercially available parts to house
 the dual cell AA battery:
 <ol>
-<li> <a href='https://www.mouser.com/ProductDetail/12BH222-GR'>Eagle Devices 12BH222-GR</a>. Be careful
-with the width if you try to substitute a part. the 12BH222 is comparatively narrow, and
+<li> <a href='https://www.mouser.com/ProductDetail/12BH222-GR'>Eagle Devices 12BH222-GR</a>. If you try to substitute a 
+part be careful
+with the width. The 12BH222 is comparatively narrow, and
 just fits inside the AA holder 3D printed part.
 <li> <a href='https://www.mcmaster.com/catalog/131/4021/2418T16'>3/32" width, Dash Number 141 ORing (2 1/2" OD)</a>
 <li> Quantity 7 #3-48 x 3/8" socket head screw. (#2-56 x 3/8" socket head also fits the 3D print)
@@ -264,16 +279,17 @@ the sensor
  (the ones with the poles) and the other two 1/8" faces are far less effective to sense! Another
 magnet with known poles helps figure out which face is right: the face that sticks to 
 the other magnet IS one of the poles. Here
-are some hints: <a href='https://www.kjmagnetics.com/products.asp?cat=163'>
+are some more hints: <a href='https://www.kjmagnetics.com/products.asp?cat=163'>
 https://www.kjmagnetics.com/products.asp?cat=163</a>.  The B422 may be mounted with either
-its North pole or South pole facing the PCB. (One orientation will permanently give positive
+its North pole or South pole facing the PCB. (The North pole orientation will permanently give positive
+close-in
 readings in the magnetic sensor, the other will give negative.) You can also use the assembled
 PCB and sketch to read out the magnetic field with the magnet close. When oriented properly,
 it will read the maximum magnitude (either + or -, either pole axis works
 fine with the sketch) about 16000.
 
 <h3>How many signals per inch of rain?</h3>
-The Oregon Scientific part, by my measurement, sends an update every 1mm of rainfall. In the retrofit I did,
+The original Oregon Scientific part, by my observation, sends an update every 1mm of rainfall. In the retrofit,
 I measured the device to send an update about every 1.2mm of rainfall. I attribute the difference
 to the extra weight of the B422 magnet compared to the original (as nothing else has changed.)
 

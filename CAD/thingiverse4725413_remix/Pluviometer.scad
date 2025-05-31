@@ -1,17 +1,17 @@
 /* This thing is modified from https://www.thingiverse.com/thing:4725413
 ** (c) 2025 by Wayne E Wright, https://www.thingiverse.com/wwrr55 
 **
-** The overall design, including the sources to the 3D models, the Arduino sketch, 
+** The sources to the 3D models, the Arduino sketch, 
 ** the printed circuit board, etc. are published on github (https://github.com/w5xd/PacketRainGauge)
 ** The 3D printable STL files are published on thingiverse (and not on github).
 **
 ** While the overall structure of the 4725413 scad file, Pluviometer.scad, is retained, none of the parts
-** below is compatible with printed versions of the original. Each has been modified in
+** here is compatible with printed versions of the original. Each has been modified in
 ** some way from the original.
 **
 ** The bucket is modified to accept a different magnet, 1/4" x 1/8" x 1/8"
 ** The threaded base/funnel joint is now implemented with the standard threads library: https://github.com/rcolyer/threads-scad
-** The sensor and sensor_back are unused in my implementation
+** The sensor and sensor_back are unused in this implementation
 ** The base is modified to have a built-in dual AA cell battery bracket
 ** AA cell holder to match the bracket is added.
 ** A flange to mate a certain T-post steel fence post is added.
@@ -66,12 +66,6 @@ flange_post_cut_depth = 25.4 * 2;
 
 tan30squared = tan(30) * tan(30); // for converting nut "across flats
 acrossFlatsConvert = sqrt(1 + tan30squared);
-
-module triangleR(a, b, h, c){
-  linear_extrude(height = h, center = c, convexity = 10)
-  resize([a, b])
-  polygon([[0,0], [1,0], [0,1]], paths=[[0,1,2]]);
-}
 
 module triangleRa(a, angle, h, c){
   rotate([90, 0, 0])
@@ -203,7 +197,7 @@ module bucket(){
   maxYFastener = AAcellH + cellFastenerDx;
   maxXFastener = AAcellW + cellFastenerDx;
 
-  numYfasteners = 4;
+  numYfasteners = 4; //well, 3 of the in the end because the bottom row is omitted in favor of tilting into the Base
 
   // the bottom row of fasteners is omitted in favor of latching the bottom edge of the AA cover into the base
   fastenerHolePositionsLeft = [ for (y = [1:1:numYfasteners-1]) [minXFastener, minYFastener + y * ( AAcellH + 2 * cellFastenerDx) /(numYfasteners-1)]];
