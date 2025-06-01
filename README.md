@@ -160,6 +160,22 @@ cutter.) This
 disables the green LED to prevent its battery drain and load on the SCK line.
 </ul>
 
+PCB Parts
+<ul>
+<li>Sparkfun Arduino Pro Mini in 3.3V
+<li>Sparkfun RFM69HCW 
+<li><a href=''>Si7210 I2C Hall effect sensor in SOT-23-5 package</li>
+<li><a href='https://www.ti.com/lit/ds/symlink/sn74hcs27.pdf'>SN74HCS27DR Triple 3-Input NOR Gates with Schmitt-Trigger Inputs in 14 SOIC package</li>
+<li><a href='https://www.ti.com/lit/ds/symlink/tmp175.pdf'></a>TMP175 temperature sensor in 8 SOIC package
+<li>10M resistor size SMD 1206
+<li>2.7K resistor size SMD 1206
+<li>2 by 4.7K resistors size SMD 0805
+<li>3 by 10uF 10V tantalum in SMD 1206
+<li>.1uF ceramic 16V in SMD1206
+</ul>
+
+<a href='https://www.mouser.com/Tools/Project/Share?AccessID=8fd74ac259'>Mouser Project</a> referencing all the above PCB parts.
+
 <h3>PCB considerations</h3>
 Mount the Arduino directly to the PCB without headers. Its important to:
 <ul>
