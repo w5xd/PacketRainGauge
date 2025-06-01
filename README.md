@@ -280,6 +280,11 @@ the dual cell AA battery:
 part be careful
 with the width. The 12BH222 is comparatively narrow, and
 just fits inside the AA holder 3D printed part.
+<li>Quantity two by AA cells. Lithium cells are preferred. They should last over 12 months.
+<li> A <a href='https://www.kjmagnetics.com/proddetail.asp?prod=B422'>K&J Magnetics B422 neodymium magnet</a>.
+The same part as the retrofit, above. Its
+Note there is a required orientation of the magnet that takes some care when
+you glue it. See <a href='#MAGNET_ORIENTATION'>below</a>.
 <li> <a href='https://www.mcmaster.com/catalog/131/4021/2418T16'>3/32" width, Dash Number 141 ORing (2 1/2" OD)</a>
 <li> Quantity 7 #3-48 x 3/8" socket head screw. (#2-56 x 3/8" socket head also fits the 3D print)
 <li> Quantity 7 #3-48 hex nuts. (#2-56 nut also fits the 3D print)

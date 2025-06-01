@@ -2,7 +2,7 @@
 ** (c) 2025 by Wayne E Wright, https://www.thingiverse.com/wwrr55 
 **
 ** The sources to the 3D models, the Arduino sketch, 
-** the printed circuit board, etc. are published on github (https://github.com/w5xd/PacketRainGauge)
+** the printed circuit board, etc. are published on github at https://github.com/w5xd/PacketRainGauge
 ** The 3D printable STL files are published on thingiverse (and not on github).
 **
 ** While the overall structure of the 4725413 scad file, Pluviometer.scad, is retained, none of the parts
@@ -11,8 +11,8 @@
 **
 ** The bucket is modified to accept a different magnet, 1/4" x 1/8" x 1/8"
 ** The threaded base/funnel joint is now implemented with the standard threads library: https://github.com/rcolyer/threads-scad
-** The sensor and sensor_back are unused in this implementation
-** The base is modified to have a built-in dual AA cell battery bracket
+** The sensor and sensor_back are unused in this implementation.
+** The base is modified to have a built-in dual AA cell battery bracket.
 ** AA cell holder to match the bracket is added.
 ** A flange to mate a certain T-post steel fence post is added.
 **
@@ -53,7 +53,7 @@ fnval = $preview ? 12 : 120;
 fn30val = $preview ? 10 : 30;
 $fn = $preview ? 12 : 120;
 
-module __x__ () {}
+module __x__ () {} // stop the OpenSCAD customizer here
 
 bucket_slot_width_mm = 24;
 
@@ -219,7 +219,6 @@ module bucket(){
 
 module positionAAcells(zOffset=batt_holder_z_offset)
 {
-  // 
   mirror([0,1,0])
   {
     translate([-AAcellW/2, batt_holder_start_y_mm + batt_holder_Ythick_mm, zOffset])
@@ -228,11 +227,11 @@ module positionAAcells(zOffset=batt_holder_z_offset)
   }
 }
 
-mainFastenerXY = [for(dx = [-1,1], dy = [-1, 1]) [33.5*dx, 25*dy]];
+baseFastenerXY = [for(dx = [-1,1], dy = [-1, 1]) [33.5*dx, 25*dy]];
 
 module mainFasteners()
 {
-  for(pos = mainFastenerXY)
+  for(pos = baseFastenerXY)
           translate(pos) children();      
 }
 
@@ -598,7 +597,7 @@ module flange() {
       union()
       {
         {
-          for (pos = mainFastenerXY) 
+          for (pos = baseFastenerXY) 
             translate(pos)
             {
               cylinder(d=flange_fastener_diameter_mm, h=flange_fastener_height_mm);
@@ -622,7 +621,7 @@ module flange() {
         }
       }
 
-      for (pos = mainFastenerXY)
+      for (pos = baseFastenerXY)
         translate(pos)
         {
           //screw hole
@@ -705,7 +704,7 @@ if (view_as_assembled != 0)
       }
     else if (view_as_assembled == 5) // intersect base & AA
     {
-      // should be empty
+      // This is just a diagnostic. It should display as empty, otherwise the base and AA cover interfere
         intersection() {
           base();
           cellAACover();
