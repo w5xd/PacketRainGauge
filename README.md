@@ -40,23 +40,23 @@ Si7210 hall effect magnetic sensor is used in this design instead of a reed rela
 senses at 5 times per second which is a little slow to
 reliably detect fast passage of the magnet through top dead center. However, the Si7210 can
 easily be programmed to separately detect the arrival and the departure of the magnet from
-its proximity. Therefore, this design instead positions its sensor, the Si7210,
+its proximity. Therefore, this design instead positions its sensor
 in alignment with the rocker at its resting position with one
 cup down&mdash;the left one in the photo above. Its Arduino
 sketch is programmed to separately report the arrival and departure of the rocker, sending a packet for
-each. The new magnet is mounted in the same fixture on the rocker as the old magnet. Its not quite the same mass: about 0.5g as
+each. The new magnet is mounted in the same fixture on the rocker as the old magnet. 
+Its not quite the same mass: about 0.5g as
 opposed to 0.3g on my scale, so a calibration check is in order before putting it into service.
 The result is this design sends packets at the same rate per volume of rainfall
 as the old one, just not quite at the exact same rocker positions.
 
 
- The original magnet cannot be used with this hall effect sensor because the reed relay 
+ The original magnet is not effective with this hall effect sensor because the reed relay 
 required the magnet's
-pole axis orientation be parallel to the axis of the reed relay. That pole
-orientation is not appropriate for the hall effect sensor on this
-replacement PCB. For the Si7210 sensor to best sense proximity, the pole axis should penetrate the sensor.
+pole axis orientation be parallel to the axis of the reed relay. 
+For the Si7210 sensor to best sense proximity, the pole axis should penetrate the sensor.
 The sensor manufacturer publishes a detailed discussion&mdash;including details
-about the exact problem of this design: replacing a reed relay with an Si7210&mdash;about how the
+about that exact scenario: replacing a reed relay with an Si7210&mdash;about how the
 magnet axis and sensor geometry are related: 
 <a href='https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf'>
 https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf<a>.
