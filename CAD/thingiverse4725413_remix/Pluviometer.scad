@@ -11,7 +11,7 @@
 **
 ** The bucket is modified to accept a different magnet, 1/4" x 1/8" x 1/8"
 ** The threaded base/funnel joint is now implemented with the standard threads library: https://github.com/rcolyer/threads-scad
-** The sensor and sensor_back are unused in this implementation.
+** The sensor and sensor_back are removed this implementation.
 ** The base is modified to have a built-in dual AA cell battery bracket.
 ** AA cell holder to match the bracket is added.
 ** A flange to mate a certain T-post steel fence post is added.
@@ -30,8 +30,6 @@ show_flange = false;
 show_cellAACover = true;
 show_bucket = true;
 show_funnel = true;
-show_sensor = false;
-show_sensor_back = false;
 
 funnel_height_mm = 120;
 funnel_inner_height_mm = 70;
@@ -523,53 +521,6 @@ module funnel(){
   }
 }
 
-module sensor(){
-    difference(){
-        union(){
-            translate([0, -0.25/2, 0]) cube([40-0.25, 4-0.25, 55], center = true);
-            
-            translate([0, -3, 12])
-            difference(){
-                cube([5, 3, 14], center = true);
-                translate([0, -3/2+2.25/2, 0]) cylinder(d=2.25, h=8, center=true, $fn=fn30val);
-                translate([0, -3/2+2.25/4, 0]) cube([2.25, 2.25/2, 8], center = true);
-                translate([0, -3/2+2.25/4, 0]) cube([0.75, 2.25/2, 12], center = true);
-            }
-            
-        }
-                
-        translate([0, -1, 12+6-0.5]) cube([1, 8, 1], center = true);
-        translate([0, -1, 12-6+0.5]) cube([1, 8, 1], center = true);
-        
-        translate([0, 1.75/2, 12]) cube([2, 1.75, 20], center = true);
-        
-        for(dx = [-1, 1]) 
-        translate([-10*dx, (3.75-3)/2, 12]) rotate([90, 0, 0]) cylinder(d=2.7, h=3, center=true, $fn=fn30val);
-     }
-}
-
-module sensor_back(){
-    difference(){
-        translate([0, 0, 0]) cube([30, 3, 30], center = true);
-    
-        for(dx = [-1, 1]) 
-            translate([-10*dx, 0, 0]) rotate([90, 0, 0]) cylinder(d=3.2, h=5, center=true, $fn=fn30val);
-
-        hull(){
-            translate([0, 0, 1]) rotate([90, 0, 0]) cylinder(d=2, h=5, center=true, $fn=fn30val);
-            translate([0, 0, -1]) rotate([90, 0, 0]) cylinder(d=2, h=5, center=true, $fn=fn30val);
-        }
-    }
-    
-    for(dx = [-1, 1]) 
-        translate([-10*dx, (3+2)/2, 0]) rotate([90, 0, 0])
-            difference(){
-               cylinder(d=10, h=2, center=true, $fn=fn30val);
-               cylinder(d=6, h=2, center=true, $fn=fn30val);
-            }
-    
-}
-
 steel_post_beam_width_mm = 25.4 * (1 + 5/16 + 1/8)  ;
 steel_post_thickness_mm = 25.4 * (.53);
 steel_post_hanger_protrusion = 25.4 * .375;
@@ -652,8 +603,6 @@ module assembled(){
     }
     if (show_flange) flange();
     if (show_bucket) rotate([0, 0, 0]) translate([0, 0, -3]) bucket();
-    if (show_sensor) translate([0, 19, 55/2-18]) sensor();
-    if (show_sensor_back) translate([0, 24, 55/2-18+12]) sensor_back();
     if (show_funnel) translate([0, 0, -18]) funnel();
 }
 
@@ -661,8 +610,6 @@ module exploded(){
     if (show_base) translate([0, 0, -18])base();
     if (show_cellAACover) cellAACover();
     if (show_bucket) rotate([0, 0, 0]) translate([0, 0, 20]) bucket();
-    if (show_sensor) translate([0, 19, 30]) sensor();
-    if (show_sensor_back) translate([0, 30, 42]) sensor_back();
     if (show_funnel) translate([0, 0, 70]) funnel();
 }
 
@@ -699,9 +646,7 @@ if (view_as_assembled != 0)
           rotate([180,0,0])
           translate([-150,0, -flange_start_z_mm])
             flange();
-        if (show_sensor) translate([-140, 0, 0]) rotate([-90,0]) sensor();
-        if (show_sensor_back) translate([0, -100, 0]) rotate([90,0]) sensor_back();
-      }
+       }
     else if (view_as_assembled == 5) // intersect base & AA
     {
       // This is just a diagnostic. It should display as empty, otherwise the base and AA cover interfere

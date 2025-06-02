@@ -177,7 +177,12 @@ PCB Parts
 <a href='https://www.mouser.com/Tools/Project/Share?AccessID=8fd74ac259'>Mouser Project</a> referencing all the above PCB parts.
 
 <h3>PCB considerations</h3>
-Mount the Arduino directly to the PCB without headers. Its important to:
+Mount the Arduino directly to the PCB without headers. 
+
+<p align='center'><img src='PCB/IMGP2912-v.jpg' alt='PCB top'/></p>
+
+
+Its important to:
 <ul>
 <li>center the Arduino on its holes in order to clear the I2C resistors mounted as above. 
 <li>minimize the solder bumps on the bottom side of the PCB so the assembly will 
@@ -188,12 +193,14 @@ reach the bottom of the main PCB.
 
 The replacement PCB layout is optimized to be as small as possible while 
 retaining the ability for an ordinary human to place the parts and solder them.
-I used a home brew SMD oven, but steady hands can alternatively 
+I used a <a href='https://whizoo.com/'>home brew SMD oven</a>, but steady hands can alternatively 
 solder them one pin at a time.
 
-Its circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
+The PCB circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
 
-The Si7210 is mounted to the <i>bottom</i> of the PCB. This is the only part on the bottom.
+The Si7210 is mounted to the <i>bottom</i> of the PCB. 
+<p align='center'><img src='PCB/IMGP2913-v.jpg' alt='PCB bottom'/></p>
+This is the only part on the bottom.
 I used an SMD oven to mount it first (and nothing else in the oven with it.) After it cooled off, 
 I flipped the board over
 and used the oven again to bake the top side SMD parts. While the ExpressPCB process provides
