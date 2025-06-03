@@ -297,6 +297,11 @@ you glue it. See <a href='#MAGNET_ORIENTATION'>below</a>.
 <li> The base/flange mount 3D parts have holes for quantity four #8-32 x 3/4" socket head screws and matching 8-32 hex nuts
 </ol>
 
+When assembling the two enclosure halves together (Body001 and Body002) with the PCB in between as a sort
+of sandwich, it might be possible to squeeze them tightly enough to permanently actuate the RESET switch
+built into the Sparkfun Arduino Pro Mini. Don't squeeze that tightly. It won't telemeter and it will run
+down the battery in about 24 hours.
+
 <h3 id="MAGNET_ORIENTATION">Magnet Orientation</h3>
 The B422 magnet's 1/4" dimension fits into the rocker mount in the obvious 1/4" slot dimension. 
 But there are
