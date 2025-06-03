@@ -14,6 +14,38 @@ This unit telemeters to
 concurrently, this <a href='https://github.com/w5xd/WWVBclock'>WWVB clock</a> can monitor the packet
 transmissions from this rain gauge.
 
+<h3>3D Print the Outdoor Assembly</h3>
+The CAD directory in this repo has 3D 
+models for the parts needed to all the outdoor parts.
+STL files are downloadable from the <a href='https://www.thingiverse.com/thing:7052595'>thingiverse 7052595 posting of this remix</a>. 
+All the STLs can be regenerated (or modified to your liking) using a combination of
+OpenSCAD and FreeCAD.
+The list of parts to print, starting with those designed with OpenSCAD is:
+<ul>
+<li><code>Pluviometer-base</code> (which requires the support enforcer <code>Pluviometer-base-supports</code>)</li>
+<li><code>Pluviometer-funnel-print</code></li>
+<li><code>Pluviometer-AA-print</code></li>
+<li><code>Pluviometer-bucket</code></li>
+<li>The flange I designed, <code>Pluviometer-flange-print</code>, fits snugly on the top of the T-profile steel fence post
+I wanted to mount it. Unless you have the same fenceposts as me, you will have to use some other mount.
+</li>
+</ul>
+The parts designed with FreeCAD are:
+<ul>
+<li><code>Placement-sensor enclosureBody001</code></li>
+<li><code>Placement-sensor enclosureBody002</code></li>
+</ul>
+
+The PCB enclosure parts need to geometrically mate with both the Pluviometer-base, designed in OpenSCAD,
+and the printed circuit board outline and hole pattern, which is available as a STEP model. The motivation for using FreeCAD
+is that it can be configured to create a model that itself depends on both the OpenSCAD model of the base and bucket,
+and the STEP model of the PCB. While the
+FreeCAD method for a dependency on a STEP model is simply its File/Import method, FreeCAD has a not-quite-obvious
+workflow for modeling dependencies on an STL mesh. Follow FreeCAD's File/Import of the OpenSCAD STL with
+its Parts Workbench "Create Points From Geometry" method. The resulting points object can then be used
+to create DatumPoint and DatumPlane references that can, in turn, be referenced in Sketches. The caveat is that this workflow
+does not automatically accommodate subsequent changes to the OpenSCAD design. That is, any subsquent change in the OpenSCAD
+design requires the FreeCAD model to be completely recreated manually.
 
 <h3>Oregon Scientific Retrofit</h3>
 The original Oregon Scientific rain gauge mechanical design is a funnel that directs rainfall into a rocker
@@ -88,39 +120,6 @@ battery's original ribbon cable is replaced with just a pair. +3VDC and GND wire
 to the replacement PCB. This design can use either
 alkaline or lithium cells. 
 </ul>
-
-<h3>3D Print the Outdoor Assembly</h3>
-As an alternative to the Oregon Scientific retrofit, the CAD directory in this repo has 3D 
-models for the parts needed to all the outdoor parts.
-STL files are downloadable from the <a href='https://www.thingiverse.com/thing:7052595'>thingiverse 7052595 posting of this remix</a>. 
-All the STLs can be regenerated (or modified to your liking) using a combination of
-OpenSCAD and FreeCAD.
-The list of parts to print, starting with those designed with OpenSCAD is:
-<ul>
-<li><code>Pluviometer-base</code> (which requires the support enforcer <code>Pluviometer-base-supports</code>)</li>
-<li><code>Pluviometer-funnel-print</code></li>
-<li><code>Pluviometer-AA-print</code></li>
-<li><code>Pluviometer-bucket</code></li>
-<li>The flange I designed, <code>Pluviometer-flange-print</code>, fits snugly on the top of the T-profile steel fence post
-I wanted to mount it. Unless you have the same fenceposts as me, you will have to use some other mount.
-</li>
-</ul>
-The parts designed with FreeCAD are:
-<ul>
-<li><code>Placement-sensor enclosureBody001</code></li>
-<li><code>Placement-sensor enclosureBody002</code></li>
-</ul>
-
-The PCB enclosure parts need to geometrically mate with both the Pluviometer-base, designed in OpenSCAD,
-and the printed circuit board outline and hole pattern, which is available as a STEP model. The motivation for using FreeCAD
-is that it can be configured to create a model that itself depends on both the OpenSCAD model of the base and bucket,
-and the STEP model of the PCB. While the
-FreeCAD method for a dependency on a STEP model is simply its File/Import method, FreeCAD has a not-quite-obvious
-workflow for modeling dependencies on an STL mesh. Follow FreeCAD's File/Import of the OpenSCAD STL with
-its Parts Workbench "Create Points From Geometry" method. The resulting points object can then be used
-to create DatumPoint and DatumPlane references that can, in turn, be referenced in Sketches. The caveat is that this workflow
-does not automatically accommodate subsequent changes to the OpenSCAD design. That is, any subsquent change in the OpenSCAD
-design requires the FreeCAD model to be completely recreated manually.
 
 <h3>The Arduino sketch</h3>
 The sketch sends a packet to the Packet Gateway every time the 
@@ -322,7 +321,7 @@ I measured the device to send an update about every 1.2mm of rainfall. I attribu
 to the extra weight of the B422 magnet compared to the original (as nothing else has changed.)
 
 The full outdoor unit, as <a href='https://www.thingiverse.com/thing:4725413'>documented by its original designer</a> 
-clicks every 0.15mm of rain. When I dripped a graduated cylinder of water through, a click about 0.15mm of 
+clicks every 0.15mm of rain. When I dripped the calibrated cylinder of water through, a click about 0.15mm of 
 rain is what I get, just like the designer planned. Your mileage may vary. 
 
 What is the highest rainfall rate that can be telemetered? There are at least two different
@@ -332,7 +331,7 @@ tips the bucket when only the weight of the water in the upper bucket overcomes 
 and (b) the electronics has a fastest rate it can detect movement (the sensor manufacturer documents
 it at 5 samples per second) or telemeter it (the RFM69 packet
 radio.) I have not attempted to measure either of these, nor brainstorm any additional rate limits.
-However, I have observed that the system reliably telemeters 1 packet every 3 seconds as the graduated cylinder
+However, I have observed that the system reliably telemeters 1 packet every 3 seconds as the calibrated cylinder
 calibration test begins. That corresponds to a rainfall rate of about 7 inches per hour. If your raingauge
 experiences more than 7 inches per hour and you are in the vicinity, then you have more serious problems than 
 whether the raingauge can keep up.
