@@ -336,7 +336,8 @@ tips the bucket when only the weight of the water in the upper bucket overcomes 
 and (b) the electronics has a fastest rate it can detect movement (the sensor manufacturer documents
 it at 5 samples per second) or telemeter it (the RFM69 packet
 radio.) I have not attempted to measure either of these, nor brainstorm any additional rate limits.
-However, I have observed that the system reliably telemeters 1 packet every 3 seconds as the calibrated cylinder
+However, I have measured that the on-the-air length of a packet is under 3 milliseconds. 
+And I have observed that the system reliably telemeters 1 packet every 3 seconds as the calibrated cylinder
 calibration test begins. That corresponds to a rainfall rate of about 7 inches per hour. If your raingauge
 experiences more than 7 inches per hour and you are in the vicinity, then you have more serious problems than 
 whether the raingauge can keep up.

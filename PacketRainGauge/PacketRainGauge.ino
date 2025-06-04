@@ -772,7 +772,7 @@ namespace {
             sleep_enable();
             sleep_bod_disable();
             sei();
-            sleep_cpu(); // about 300uA, average. About 200uA and rises as cap discharges
+            sleep_cpu(); 
             sleep_disable();
             sei();
             count += 1;
