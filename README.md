@@ -2,24 +2,24 @@
 
 This design is for a device that telemeters a packet when a magnet approaches, and
 again when it retreats from a hall effect sensor model Si7210. It consists
-of a Printed Circuit Board (PCB) design, an Arduino sketch, and two variations on a 3D
-printable PCB enclosure. One enclosure is designed to retrofit inside a discarded rain gauge funnel
+of a Printed Circuit Board (PCB) design, an Arduino sketch, and two variations on a funnel
+that catches rain. One variant is a retrofit to install discarded rain gauge funnel
 from an Oregon Scientific RGR126N Wireless Rain Gauge. If you don't 
-have an RGR126N to retrofit, there is included a full 3D printable outdoor unit, which I designed
+have an RGR126N to retrofit, there is included  a 3D printable outdoor untit, which I designed
 as a remix of this 
 <a href='https://www.thingiverse.com/thing:4725413'>thingiverse rain gauge</a>.
 
-This unit telemeters to 
+This unit can telemeter to 
 <a href='https://github.com/w5xd/PacketGateway'>an open-source packet gateway</a>.  Separately, or 
 concurrently, this <a href='https://github.com/w5xd/WWVBclock'>WWVB clock</a> can monitor the packet
-transmissions from this rain gauge.
+transmissions from this rain gauge. Or you derive your own design from the sources here. 
 
 <h3>3D Print the Outdoor Assembly</h3>
 The CAD directory in this repo has 3D 
 models for the parts needed to all the outdoor parts.
 STL files are downloadable from the <a href='https://www.thingiverse.com/thing:7052595'>thingiverse 7052595 posting of this remix</a>. 
 All the STLs can be regenerated (or modified to your liking) using a combination of
-OpenSCAD and FreeCAD.
+OpenSCAD and FreeCAD. Each is open sourced and free.
 The list of parts to print, starting with those designed with OpenSCAD is:
 <ul>
 <li><code>Pluviometer-base</code> (which requires the support enforcer <code>Pluviometer-base-supports</code>)</li>
@@ -72,33 +72,30 @@ Si7210 hall effect magnetic sensor is used in this design instead of a reed rela
 senses at 5 times per second which is a little slow to
 reliably detect fast passage of the magnet through top dead center. However, the Si7210 can
 easily be programmed to separately detect the arrival and the departure of the magnet from
-its proximity. Therefore, this design instead positions its sensor
-in alignment with the rocker at its resting position with one
+proximity to the sensor. This design does that. It positions its sensor
+in close alignment with the rocker at its resting position with one
 cup down&mdash;the left one in the photo above. Its Arduino
 sketch is programmed to separately report the arrival and departure of the rocker, sending a packet for
-each. The new magnet is mounted in the same fixture on the rocker as the old magnet. 
-Its not quite the same mass: about 0.5g as
+each. The new magnet is mounted in the same recess in the rocker as the old magnet. 
+The needed magnet is slightly heavier than the original: about 0.5g as
 opposed to 0.3g on my scale, so a calibration check is in order before putting it into service.
-The result is this design sends packets at the same rate per volume of rainfall
+The result is this design sends packets at (almost) the same rate per volume of rainfall
 as the old one, just not quite at the exact same rocker positions.
 
 
- The original magnet is not effective with this hall effect sensor because the reed relay 
-required the magnet's
-pole axis orientation be parallel to the axis of the reed relay. 
-For the Si7210 sensor to best sense proximity, the pole axis should penetrate the sensor.
-The sensor manufacturer publishes a detailed discussion&mdash;including details
-about that exact scenario: replacing a reed relay with an Si7210&mdash;about how the
+The sensor manufacturer publishes a detailed discussion about magnets&mdash;including details
+about this exact scenario: replacing a reed relay with an Si7210&mdash;about how the
 magnet axis and sensor geometry are related: 
 <a href='https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf'>
 https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf<a>.
-A K&J Magnetics B422 magnet conveniently matches the original magnet's dimensions, and has its
+A K&J Magnetics B422 magnet conveniently matches the original magnet's dimensions to
+fit in the original rocker, and has its
 poles aligned so that its
-pole axis can be oriented to penetrate the Si7210 when mounted in the original rocker.
+pole axis as required to penetrate the Si7210 when mounted in the original rocker.
 
-The original
-battery compartment is retained after removing the PCB that shares the
-battery enclosure. This upgrade can run on two AA cells just like the original. I had
+The original water tight
+battery compartment is retained, but after removing the PCB that shares the
+battery enclosure. This upgrade runs on two AA cells just like the original. I had
 no luck running the Oregon Scientific device using lithium AA cells, but this design works
 well with them and gets the much longer battery life with the lithium cells'
  much larger Ampere-hour capacity compared to alkaline.
@@ -152,17 +149,18 @@ in this project:
 <li>The bottom side i2c pullup positions, R1 and R3, can each have a 4.7K 
 resistor installed. Two SMD 0603 size resistors just fit inside a hole
 in the PCB designed to clear them. Alternatively, REV02 of the PCB has positions for SMD
-0804  pull up resistors
-if that is more convenient to install.
+0804  pull up resistors that are not quite so tiny.
 <li>The 330 ohm resistor just inside pins D11 and D12 can be removed (or cut with a diagonal 
 cutter.) This
-disables the green LED to prevent its battery drain and load on the SCK line.
+disables the green LED to prevent its battery drain and load on the SCK line. The LED is
+almost never turned on by the sketch, so removing it saves very little.
 </ul>
 
 PCB Parts
 <ul>
-<li>Sparkfun Arduino Pro Mini in 3.3V
-<li>Sparkfun RFM69HCW 
+<li>Sparkfun Arduino <a href='https://www.sparkfun.com/arduino-pro-mini-328-3-3v-8mhz.html'>Pro Mini</a> in 3.3V
+<li>Sparkfun <a href='https://www.sparkfun.com/rfm69hcw-wireless-transceiver-915mhz.html'>
+RFM69HCW</a></li>
 <li><a href=''>Si7210 I2C Hall effect sensor in SOT-23-5 package</li>
 <li><a href='https://www.ti.com/lit/ds/symlink/sn74hcs27.pdf'>SN74HCS27DR Triple 3-Input NOR Gates with Schmitt-Trigger Inputs in 14 SOIC package</li>
 <li><a href='https://www.ti.com/lit/ds/symlink/tmp175.pdf'></a>TMP175 temperature sensor in 8 SOIC package
@@ -173,7 +171,7 @@ PCB Parts
 <li>.1uF ceramic 16V in SMD1206
 </ul>
 
-<a href='https://www.mouser.com/Tools/Project/Share?AccessID=8fd74ac259'>Mouser Project</a> referencing all the above PCB parts.
+Mouser <a href='https://www.mouser.com/Tools/Project/Share?AccessID=8fd74ac259'>Project</a> referencing all the above PCB parts.
 
 <h3>PCB considerations</h3>
 Mount the Arduino directly to the PCB without headers. 
@@ -223,6 +221,8 @@ the standard ISP
 programming header on the Arduino Pro Mini, or, in a non-standard layout, the
 Arduino's serial port.
 
+<p align='center'><img alt='programming-jig' src='programming-jig.jpg'/></p>
+
 The serial port pin layout on this PCB is 3 extra pins alongside the standard 6-pin ISP header.
  I used a
 <a href=''>SparkFun ISP Pogo Adapter</a> with an FTDI USB serial breakout
@@ -237,6 +237,9 @@ has no connector on the ends of its wires. You can solder them to, for example,
 the <a href='https://www.sparkfun.com/products/13263'>SparkFun FT231X Breakout</a>.
 Note that on this particular FT231X breakout, you <b>must</b> change the power jumper to
 make it supply 3.3V, else you'll fry the RFM69 on your first try.
+
+The CAD directory has a 3D model for a jig that fits the PCB and the Pogo adapter
+that frees your hands while accessing the serial port on the PCB.
 
 The Pogo Adapter has 6 wires. When positioned for access to the Arduino serial port,
 the wires are <i>not</i> as labeled on the Pogo board, but are as follows on the PCB's
@@ -291,21 +294,25 @@ just fits inside the AA holder 3D printed part.
 The same part as the retrofit, above. Its
 Note there is a required orientation of the magnet that takes some care when
 you glue it. See <a href='#MAGNET_ORIENTATION'>below</a>.
-<li> <a href='https://www.mcmaster.com/catalog/131/4021/2418T16'>3/32" width, Dash Number 141 ORing (2 1/2" OD)</a>
+<li> <a href='https://www.mcmaster.com/catalog/131/4021/2418T16'>3/32" width, Dash Number 141 O Ring (2 1/2" OD)</a>
+The O ring seals the battery compartment against water.
 <li> Quantity 7 #3-48 x 3/8" socket head screw. (#2-56 x 3/8" socket head also fits the 3D print)
 <li> Quantity 7 #3-48 hex nuts. (#2-56 nut also fits the 3D print)
 <li> The base/flange mount 3D parts have holes for quantity four #8-32 x 3/4" socket head screws and matching 8-32 hex nuts
 </ol>
 
-When assembling the two enclosure halves together (Body001 and Body002) with the PCB in between as a sort
-of sandwich, it might be possible to squeeze them tightly enough to permanently actuate the RESET switch
-built into the Sparkfun Arduino Pro Mini. Don't squeeze that tightly. It won't telemeter and it will run
+When assembling the two enclosure halves together (Body001 and Body002) with the PCB in between as a 
+sandwich, it is possible to squeeze them tightly enough to permanently actuate the RESET switch
+built into the Sparkfun Arduino Pro Mini. Don't squeeze that tightly! It won't telemeter and it will run
 down the battery in about 24 hours.
 
 <h3 id="MAGNET_ORIENTATION">Magnet Orientation</h3>
 The B422 magnet's 1/4" dimension fits into the rocker mount in the obvious 1/4" slot dimension. 
-But there are
-four 1/8" sides to the magnet that might face the sensor! The magnet has two opposing 1/8" faces 
+But that geometry makes
+four 1/8" sides to the magnet that might face the sensor and only two of them work!
+(Well, it will probably work with the "wrong" orientation anyway because the hall effect sensor is very
+good at detecting near versus far if any field lines cross it at all, and they do in this funnel.)
+The magnet has two opposing 1/8" faces 
 that are optimum to face
 the sensor
  (the ones with the poles) and the other two 1/8" faces are far less effective to sense! Another
@@ -338,7 +345,10 @@ it at 5 samples per second) or telemeter it (the RFM69 packet
 radio.) I have not attempted to measure either of these, nor brainstorm any additional rate limits.
 However, I have measured that the on-the-air length of a packet is under 3 milliseconds. 
 And I have observed that the system reliably telemeters 1 packet every 3 seconds as the calibrated cylinder
-calibration test begins. That corresponds to a rainfall rate of about 7 inches per hour. If your raingauge
+calibration test begins.
+The actual limit is likely much faster than that.  A bucket dump every 3 seconds
+corresponds to a rainfall rate of about 7 inches per hour. 
+If your raingauge
 experiences more than 7 inches per hour and you are in the vicinity, then you have more serious problems than 
 whether the raingauge can keep up.
 

@@ -21,6 +21,15 @@ namespace {
         Serial.println(digitalRead(RC_STATUS_PIN) == HIGH ? "active" : "inactive");
     }
 
+    void printMagField()
+    {
+        auto mag = si7210.readMagField();
+        Serial.print("SI7210 results: field=");
+        Serial.print(mag);
+        Serial.print(" interrupt=");
+        Serial.println(digitalRead(ROCKER_INPUT_PIN));
+    }
+
     bool processCommand(const char* pCmd)
     {
         static const char TOGGLE[] = "T";
@@ -82,11 +91,7 @@ namespace {
         }
         else if (strncmp(pCmd, MAG, sizeof(MAG) - 1) == 0)
         {
-            auto mag = si7210.readMagField();
-            Serial.print("SI7210 results: field=");
-            Serial.print(mag);
-            Serial.print(" interrupt=");
-            Serial.println(digitalRead(ROCKER_INPUT_PIN));
+            printMagField();
             return true;
         }
         else if (strncmp(pCmd, INPUTS, sizeof(INPUTS)-1) == 0)
@@ -161,6 +166,7 @@ void loop()
         if ((intIn != previntIn) || (prevsi7210 != si7210Input))
         {
             printPins();
+            printMagField();
         }
         prevsi7210 = si7210Input;
         previntIn = intIn;

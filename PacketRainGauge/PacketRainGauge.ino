@@ -50,6 +50,8 @@
 #define TELEMETER_BATTERY_V
 //#define SERIAL_DEBUG_OUTPUT
 
+//#define FLASH_LED_ON_WAKEUP // for debugging
+
 #define FAR_THRESHOLD(X) X/8
 #define NEAR_THRESHOLD(x) x / 2
 
@@ -744,13 +746,11 @@ namespace {
             Serial.flush();// wait for finish and turn off pins before sleep
             Serial.end();
         }
-        else
-        {
-            // hold TXD steady 
-            pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
-            digitalWrite(TXD_PIN, HIGH);
-            pinMode(TXD_PIN, OUTPUT); // TXD hold steady
-        }
+        // regardless of whether the Serial is going to be re-enabled, hold TX steady
+        // so if a port is attached, the PC doesn't get (as much) garbage.
+        pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
+        digitalWrite(TXD_PIN, HIGH);
+        pinMode(TXD_PIN, OUTPUT); // TXD hold steady
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
@@ -807,6 +807,13 @@ namespace {
             Serial.begin(SERIAL_PORT_BAUDS);
             Serial.println(F("******waked up*******"));
         }
+#endif
+
+#if defined(FLASH_LED_ON_WAKEUP)
+        pinMode(LED_BUILTIN, OUTPUT);
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(20);
+        pinMode(LED_BUILTIN, INPUT);
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
