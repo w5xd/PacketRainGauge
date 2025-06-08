@@ -72,7 +72,7 @@ public:
         for (int i = 0; i < NUM_POINTERS; i += 1)
         {
             Wire.beginTransmission(SlaveAddress);
-            writePointerRegister(i);
+            writePointerRegister(static_cast<Pointer_t>(i));
             Wire.endTransmission(false);
             Wire.requestFrom(SlaveAddress, static_cast<uint8_t>(2));
             Serial.print("Dump config="); 
