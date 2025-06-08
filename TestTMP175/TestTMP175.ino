@@ -3,9 +3,22 @@
 
 namespace {
     const int ROCKER_INPUT_PIN = 17;
-    const int INTERRUPT_INPUT_PIN = 3;
-    const int RC_INOUT_PIN = 8;
+    const int RC_RLY_INTERRUPT_PIN = 3;
+    const int RC_STATUS_PIN = 16;   // only on REV02 of the PCB
+    const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
+    const long SERIAL_PORT_BAUDS = 38400;
 
+    void printPins()
+    {
+        Serial.println();
+        Serial.print("Interrupt 3 is ");
+        Serial.println(digitalRead(RC_RLY_INTERRUPT_PIN) == LOW ? "active" : "inactive");
+        Serial.print("Hall effect interrupt (D17)) is ");
+        Serial.println(digitalRead(ROCKER_INPUT_PIN) == LOW ? "active" : "inactive");
+        Serial.print("RC_STATUS_PIN is ");
+        Serial.println(digitalRead(RC_STATUS_PIN) == HIGH ? "active" : "inactive");
+    }    
+ 
     TMP175 tmp175(0b1001000); //0b1001000 per TMP175 docs, is I2C address with all addressing pins low.
 
     bool processCommand(const char* pCmd)
@@ -15,6 +28,7 @@ namespace {
         static const char WATCH[] = "C";
         static const char TEMP[] = "T";
         static const char INPUTS[] = "P";
+        static const char START[] = "S";
         if (strncmp(pCmd, DUMP, sizeof(DUMP) - 1) == 0)
         {
             tmp175.dump();
@@ -22,14 +36,14 @@ namespace {
         }
         else if (strncmp(pCmd, CHARGE, sizeof(CHARGE) - 1) == 0)
         {
-            pinMode(RC_INOUT_PIN, OUTPUT);
-            digitalWrite(RC_INOUT_PIN, HIGH);
+            pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
+            digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
             Serial.println("Charge");
             return true;
         }
         else if (strncmp(pCmd, WATCH, sizeof(WATCH) - 1) == 0)
         {
-            pinMode(RC_INOUT_PIN, INPUT);
+            pinMode(TIMER_RC_CHARGE_PIN, INPUT);
             Serial.println("RC discharge");
             return true;
         }
@@ -63,10 +77,13 @@ namespace {
         }
         else if (strncmp(pCmd, INPUTS, sizeof(INPUTS)-1) == 0)
         {
-            Serial.print("D3=");
-            Serial.print(digitalRead(3));
-            Serial.print(" D17=");
-            Serial.println(digitalRead(17));
+            printPins();
+            return true;
+        }
+        else if (strncmp(pCmd, START, sizeof(START)-1) == 0)
+        {
+            tmp175.startReadTemperature();
+            return true;
         }
         return false;
     }
@@ -74,11 +91,17 @@ namespace {
 
 void setup()
 {
-    pinMode(ROCKER_INPUT_PIN, INPUT);
-    pinMode(INTERRUPT_INPUT_PIN, INPUT);
-    Serial.begin(9600);
+    pinMode(ROCKER_INPUT_PIN, INPUT_PULLUP);
+    pinMode(RC_RLY_INTERRUPT_PIN, INPUT);
+    pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
+    digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
+    Serial.begin(SERIAL_PORT_BAUDS);
     Serial.println("TMP175 test");
+    printPins();
+    Wire.begin();
     tmp175.setup();
+    Serial.println("Setup complete");
+    pinMode(TIMER_RC_CHARGE_PIN, INPUT);
 }
 
 void loop()
@@ -114,13 +137,10 @@ void loop()
         static int prevsi7210 = -1;
         static int previntIn = -1;
         auto si7210Input = digitalRead(ROCKER_INPUT_PIN);
-        auto intIn = digitalRead(INTERRUPT_INPUT_PIN);
+        auto intIn = digitalRead(RC_RLY_INTERRUPT_PIN);
         if ((intIn != previntIn) || (prevsi7210 != si7210Input))
         {
-            Serial.print("D3="); 
-            Serial.print((int)intIn);
-            Serial.print(" D17=");
-            Serial.println((int)si7210Input);
+            printPins();
         }
         prevsi7210 = si7210Input;
         previntIn = intIn;

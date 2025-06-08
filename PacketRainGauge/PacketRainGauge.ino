@@ -53,7 +53,7 @@
 #define FAR_THRESHOLD(X) X/8
 #define NEAR_THRESHOLD(x) x / 2
 
-#define REVISION "REV03"
+#define REVISION "REV04"
 
 #if defined(USE_RFM69)
 #include <RFM69.h>
@@ -188,7 +188,6 @@ namespace {
     const unsigned MONITOR_ROCKER_MSEC = 100; // go at least this long after waking before assuming it was RC was the cause
 
     RadioConfiguration radioConfiguration;
-    bool enableRadio = false;
     unsigned long TimeOfWakeup;
     unsigned SleepLoopTimerCount = 30; // approx R1 * C1 seconds per Count (= 100seconds)
 
@@ -202,6 +201,7 @@ namespace {
 
     bool enableSerial = true;
     const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
+    bool radioOK = false;
 }
 
 void setup()
@@ -230,15 +230,14 @@ void setup()
     auto nodeId = radioConfiguration.NodeId();
     auto networkId = radioConfiguration.NetworkId();
     auto fbId = radioConfiguration.FrequencyBandId();
-    auto ok = nodeId != 0xff &&
+    radioOK = nodeId != 0xff &&
             networkId != 0xff &&
             fbId != 0xff &&
             radio.initialize(fbId, nodeId, networkId);
 #if defined(USE_SERIAL)
-    Serial.println(ok ? "Radio init OK" : "Radio init failed");
-    if (ok)
+    Serial.println(radioOK ? "Radio init OK" : "Radio init failed");
+    if (radioOK)
     {
-        enableRadio = true;
         uint32_t freq;
         if (radioConfiguration.FrequencyKHz(freq))
             radio.setFrequency(1000*freq);
@@ -246,10 +245,13 @@ void setup()
     }
 #endif   
 
-    radio.setHighPower(); // Always use this for RFM69HCW
+    if (radioOK)
+    {
+        radio.setHighPower(); // Always use this for RFM69HCW
     // Turn on encryption if desired:
-    if (ENCRYPT)
-        radio.encrypt(radioConfiguration.EncryptionKey());
+        if (radioConfiguration.encrypted() && ENCRYPT)
+            radio.encrypt(radioConfiguration.EncryptionKey());
+    }
 #else
     radio.startAsleep();
 #endif
@@ -339,6 +341,7 @@ void setup()
     Serial.println(getOnloopSerialDisable() ? "ON" : "OFF");
 
     tmp175.startReadTemperature();
+    Serial.println("Setup complete");
 }
 
 /* Power management:
@@ -379,6 +382,7 @@ namespace {
         static const char SET_HYSTERESIS[] = "SetSWHYST"; // argument is HEX number range 00 : 3F, 3F is special case for ZERO
         static const char SET_TOOTP[] = "SetToOTP";
         static const char VER[] = "VER";
+        static const char DUMP_RFM69[] = "DumpRFM69";
         const char *q = pCmd;
 
         if (strncmp(pCmd, SET_LOOPCOUNT, sizeof(SET_LOOPCOUNT) - 1) == 0)
@@ -448,6 +452,13 @@ namespace {
             setRaingaugeSwop(0xff);
             si7210.resetToOTP();
             si7210.wakeup(); // resetToOTP set sleep()
+            return true;
+        }
+        else if (q = strstr(pCmd, DUMP_RFM69))
+        {
+            radio.SPIon();
+            radio.readAllRegs();
+            return true;
         }
         return false;
     }
@@ -463,7 +474,7 @@ void loop()
     // In this section, we'll check with the RFM69HCW to see
     // if it has received any packets:
 
-    if (radio.receiveDone()) // Got one!
+    if (radioOK && radio.receiveDone()) // Got one!
     {
         // Print out the information:
         TimeOfWakeup = now; // extend sleep timer
@@ -683,7 +694,7 @@ void loop()
             Serial.println(buf);
 #endif
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
-        if (enableRadio)
+        if (radioOK)
             radio.sendWithRetry(GATEWAY_NODEID, buf, strlen(buf));
 #endif
     }
@@ -733,13 +744,18 @@ namespace {
             Serial.flush();// wait for finish and turn off pins before sleep
             Serial.end();
         }
-        pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
-        digitalWrite(TXD_PIN, HIGH);
-        pinMode(TXD_PIN, OUTPUT); // TXD hold steady
+        else
+        {
+            // hold TXD steady 
+            pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
+            digitalWrite(TXD_PIN, HIGH);
+            pinMode(TXD_PIN, OUTPUT); // TXD hold steady
+        }
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
-        radio.SPIoff();
+        if (radioOK)
+            radio.SPIoff();
 #endif
 
 #if defined(TELEMETER_BATTERY_V)
@@ -794,7 +810,8 @@ namespace {
 #endif
 
 #if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
-        radio.SPIon();
+        if (radioOK)
+            radio.SPIon();
 #endif
         tmp175.startReadTemperature();
         si7210.wakeup();
