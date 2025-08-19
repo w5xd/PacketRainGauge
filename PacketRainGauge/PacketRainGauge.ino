@@ -92,6 +92,7 @@ namespace {
 
     const unsigned long FirstListenAfterTransmitMsec = 20000;// at system reset, listen Serial/RF for this long
     const unsigned long NormalListenAfterTransmit = 300;// after TX, go to RX for this long
+    
 
 #if defined(USE_RFM69)
 // RFM69 frequency, uncomment the frequency of your module:
@@ -202,8 +203,18 @@ namespace {
     const int MAX_MAGFIELD_POLL = 10;
 
     bool enableSerial = true;
-    const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
     bool radioOK = false;
+}
+
+namespace {
+        const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
+        const char SET_SERIAL[] = "SetSerial";
+        const char SET_THRESHOLD[] = "SetSWOP"; // HEX number range 00 : 7F where 7f is special case of "latch mode" where  
+        const char SET_HYSTERESIS[] = "SetSWHYST"; // argument is HEX number range 00 : 3F, 3F is special case for ZERO
+        const char SET_TOOTP[] = "SetToOTP";
+        const char VER[] = "VER";
+        const char DUMP_RFM69[] = "DumpRFM69";
+        const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
 }
 
 void setup()
@@ -377,14 +388,7 @@ namespace {
     }
 
     bool processCommand(const char *pCmd)
-    {
-        static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
-        static const char SET_SERIAL[] = "SetSerial";
-        static const char SET_THRESHOLD[] = "SetSWOP"; // HEX number range 00 : 7F where 7f is special case of "latch mode" where  
-        static const char SET_HYSTERESIS[] = "SetSWHYST"; // argument is HEX number range 00 : 3F, 3F is special case for ZERO
-        static const char SET_TOOTP[] = "SetToOTP";
-        static const char VER[] = "VER";
-        static const char DUMP_RFM69[] = "DumpRFM69";
+    {       
         const char *q = pCmd;
 
         if (strncmp(pCmd, SET_LOOPCOUNT, sizeof(SET_LOOPCOUNT) - 1) == 0)
