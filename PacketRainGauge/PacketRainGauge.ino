@@ -45,7 +45,6 @@
 
 // Include the RFM69 and SPI libraries:
 #define USE_RFM69
-//#define SLEEP_RFM69_ONLY /* for testing only */
 #define USE_SERIAL
 #define TELEMETER_BATTERY_V
 //#define SERIAL_DEBUG_OUTPUT
@@ -55,7 +54,7 @@
 #define FAR_THRESHOLD(X) X/8
 #define NEAR_THRESHOLD(x) x / 2
 
-#define REVISION "REV04"
+#define REVISION "REV05"
 
 #if defined(USE_RFM69)
 #include <RFM69.h>
@@ -92,6 +91,7 @@ namespace {
 
     const unsigned long FirstListenAfterTransmitMsec = 20000;// at system reset, listen Serial/RF for this long
     const unsigned long NormalListenAfterTransmit = 300;// after TX, go to RX for this long
+    
 
 #if defined(USE_RFM69)
 // RFM69 frequency, uncomment the frequency of your module:
@@ -104,47 +104,13 @@ namespace {
     // Use ACKnowledge when sending messages (or not):
     const bool USEACK = true; // Request ACKs or not
     const int RFM69_RESET_PIN = 9;
+    const int RFM69_CHIP_SELECT_PIN = 10;
+    const int RFM69_INT_PIN = 2;
     const uint8_t GATEWAY_NODEID = 1;
 
-    class SleepRFM69 : public RFM69
-    {
-        /* SleepRFM69 has specializations to power it down and power it back up
-        ** after a long sleep. */
-    public:
-        void startAsleep()
-        {
-            digitalWrite(_slaveSelectPin, HIGH);
-            pinMode(_slaveSelectPin, OUTPUT);
-            SPI.begin();
-            SPIoff();
-        }
-
-        void SPIoff()
-        {
-            // this command drops the idle current by about 100 uA...maybe
-            // I could not get consistent results. so I left it in
-            writeReg(REG_OPMODE, (readReg(REG_OPMODE) & 0xE3) | RF_OPMODE_SLEEP | RF_OPMODE_LISTENABORT);
-            _mode = RF69_MODE_STANDBY; // force base class do the write
-            sleep();
-            SPI.end();
-
-            // set high impedance for all pins connected to RFM69
-            // ...except VDD, of course
-            pinMode(PIN_SPI_MISO, INPUT);
-            pinMode(PIN_SPI_MOSI, INPUT);
-            pinMode(PIN_SPI_SCK, INPUT);
-            pinMode(PIN_SPI_SS, INPUT);
-            pinMode(_slaveSelectPin, INPUT);
-        }
-        void SPIon()
-        {
-            digitalWrite(_slaveSelectPin, HIGH);
-            pinMode(_slaveSelectPin, OUTPUT);
-            SPI.begin();
-        }
-    };
+ 
     // Create a library object for our RFM69HCW module:
-    SleepRFM69 radio;
+    RFM69 radio(RFM69_CHIP_SELECT_PIN, RFM69_INT_PIN, true);
 #endif
 
     bool getOnloopSerialDisable()
@@ -202,8 +168,18 @@ namespace {
     const int MAX_MAGFIELD_POLL = 10;
 
     bool enableSerial = true;
-    const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
     bool radioOK = false;
+}
+
+namespace {
+        const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
+        const char SET_SERIAL[] = "SetSerial";
+        const char SET_THRESHOLD[] = "SetSWOP"; // HEX number range 00 : 7F where 7f is special case of "latch mode" where  
+        const char SET_HYSTERESIS[] = "SetSWHYST"; // argument is HEX number range 00 : 3F, 3F is special case for ZERO
+        const char SET_TOOTP[] = "SetToOTP";
+        const char VER[] = "VER";
+        const char DUMP_RFM69[] = "DumpRFM69";
+        const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
 }
 
 void setup()
@@ -226,8 +202,10 @@ void setup()
 #endif
 
 #if defined(USE_RFM69)
+    pinMode(RFM69_CHIP_SELECT_PIN, OUTPUT);
+    digitalWrite(RFM69_CHIP_SELECT_PIN, HIGH);
+    SPI.begin();
 
-#if !defined(SLEEP_RFM69_ONLY)
     // Initialize the RFM69HCW:
     auto nodeId = radioConfiguration.NodeId();
     auto networkId = radioConfiguration.NetworkId();
@@ -254,9 +232,6 @@ void setup()
         if (radioConfiguration.encrypted() && ENCRYPT)
             radio.encrypt(radioConfiguration.EncryptionKey());
     }
-#else
-    radio.startAsleep();
-#endif
 
 #endif
 
@@ -377,14 +352,7 @@ namespace {
     }
 
     bool processCommand(const char *pCmd)
-    {
-        static const char SET_LOOPCOUNT[] = "SetDelayLoopCount";
-        static const char SET_SERIAL[] = "SetSerial";
-        static const char SET_THRESHOLD[] = "SetSWOP"; // HEX number range 00 : 7F where 7f is special case of "latch mode" where  
-        static const char SET_HYSTERESIS[] = "SetSWHYST"; // argument is HEX number range 00 : 3F, 3F is special case for ZERO
-        static const char SET_TOOTP[] = "SetToOTP";
-        static const char VER[] = "VER";
-        static const char DUMP_RFM69[] = "DumpRFM69";
+    {       
         const char *q = pCmd;
 
         if (strncmp(pCmd, SET_LOOPCOUNT, sizeof(SET_LOOPCOUNT) - 1) == 0)
@@ -458,7 +426,6 @@ namespace {
         }
         else if (q = strstr(pCmd, DUMP_RFM69))
         {
-            radio.SPIon();
             radio.readAllRegs();
             return true;
         }
@@ -471,7 +438,7 @@ void loop()
     static bool TransmittedSinceSleep = false;
     unsigned long now = millis();
 
-#if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
+#if defined(USE_RFM69)
     // RECEIVING
     // In this section, we'll check with the RFM69HCW to see
     // if it has received any packets:
@@ -695,7 +662,7 @@ void loop()
         if (enableSerial)
             Serial.println(buf);
 #endif
-#if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
+#if defined(USE_RFM69) 
         if (radioOK)
             radio.sendWithRetry(GATEWAY_NODEID, buf, strlen(buf));
 #endif
@@ -753,14 +720,13 @@ namespace {
         pinMode(TXD_PIN, OUTPUT); // TXD hold steady
 #endif
 
-#if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
+#if defined(USE_RFM69)
         if (radioOK)
-            radio.SPIoff();
+            radio.sleep();
 #endif
 
 #if defined(TELEMETER_BATTERY_V)
-        analogReference(EXTERNAL); // This sequence drops idle current by 30uA
-        analogRead(BATTERY_PIN); // doesn't shut down the band gap until we USE ADC
+        ADCSRA = 0; // Turn off ADC
 #endif
 
         si7210.sleep(false);
@@ -816,10 +782,6 @@ namespace {
         pinMode(LED_BUILTIN, INPUT);
 #endif
 
-#if defined(USE_RFM69) && !defined(SLEEP_RFM69_ONLY)
-        if (radioOK)
-            radio.SPIon();
-#endif
         tmp175.startReadTemperature();
         si7210.wakeup();
         si7210.one(); // Output pin check won't be updated in loop() without this
