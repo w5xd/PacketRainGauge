@@ -54,7 +54,7 @@
 #define FAR_THRESHOLD(X) X/8
 #define NEAR_THRESHOLD(x) x / 2
 
-#define REVISION "REV04"
+#define REVISION "REV05"
 
 #if defined(USE_RFM69)
 #include <RFM69.h>
