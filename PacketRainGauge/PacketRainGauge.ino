@@ -54,7 +54,7 @@
 #define FAR_THRESHOLD(X) X/8
 #define NEAR_THRESHOLD(x) x / 2
 
-#define REVISION "REV05"
+#define REVISION "REV06"
 
 #if defined(USE_RFM69)
 #include <RFM69.h>
@@ -726,6 +726,7 @@ namespace {
 #endif
 
 #if defined(TELEMETER_BATTERY_V)
+        auto saveADCSRA = ADCSRA;
         ADCSRA = 0; // Turn off ADC
 #endif
 
@@ -764,6 +765,7 @@ namespace {
         power_all_enable();
 
 #if defined(TELEMETER_BATTERY_V)
+        ADCSRA = saveADCSRA;
         ResetAnalogReference();
 #endif
 
