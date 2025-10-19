@@ -3,7 +3,7 @@
 This design is for a device that telemeters a packet when a magnet approaches, and
 again when it retreats from a hall effect sensor model Si7210. It consists
 of a Printed Circuit Board (PCB) design, an Arduino sketch, and two variations on a funnel
-that catches rain. One variant is a retrofit to install discarded rain gauge funnel
+that catches rain. One variant is a retrofit to install in a discarded rain gauge funnel
 from an Oregon Scientific RGR126N Wireless Rain Gauge. If you don't 
 have an RGR126N to retrofit, there is included  a 3D printable outdoor untit, which I designed
 as a remix of this 
@@ -302,8 +302,8 @@ The O ring seals the battery compartment against water.
 </ol>
 
 When assembling the two enclosure halves together (Body001 and Body002) with the PCB in between as a 
-sandwich, it is possible to squeeze them tightly enough to permanently actuate the RESET switch
-built into the Sparkfun Arduino Pro Mini. Don't squeeze that tightly! It won't telemeter and it will run
+sandwich, shoud not be possible to squeeze them tightly enough to permanently actuate the RESET switch
+built into the Sparkfun Arduino Pro Mini. But check it. It won't telemeter and it will run
 down the battery in about 24 hours.
 
 <h3 id="MAGNET_ORIENTATION">Magnet Orientation</h3>
