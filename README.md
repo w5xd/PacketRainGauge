@@ -333,8 +333,9 @@ I measured the device to send an update about every 1.2mm of rainfall. I attribu
 to the extra weight of the B422 magnet compared to the original (as nothing else has changed.)
 
 The full outdoor unit, as <a href='https://www.thingiverse.com/thing:4725413'>documented by its original designer</a> 
-clicks every 0.15mm of rain. When I dripped the calibrated cylinder of water through, a click about 0.15mm of 
-rain is what I get, just like the designer planned. Your mileage may vary. 
+clicks every 0.15mm of rain. As of the latest update to this repository, a 1/4" hex weighting nut is added
+to the rocker to make the water volume more consistent, and to require more water to rock it. 
+I measure 0.38mm of rain per click. Your mileage may vary. 
 
 What is the highest rainfall rate that can be telemetered? There are at least two different
 parts of this design that might limit the highest rate: (a) water pouring through the funnel
