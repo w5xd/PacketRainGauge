@@ -23,9 +23,9 @@ OpenSCAD and FreeCAD. Each is open sourced and free.
 The list of parts to print, starting with those designed with OpenSCAD is:
 <ul>
 <li><code>Pluviometer-base</code> (which requires the support enforcer <code>Pluviometer-base-supports</code>)</li>
-<li><code>Pluviometer-funnel-print</code></li>
+<li><code>funnel-improved</code></li>
 <li><code>Pluviometer-AA-print</code></li>
-<li><code>Pluviometer-bucket</code></li>
+<li><code>bucket-improved</code></li>
 <li>The flange I designed, <code>Pluviometer-flange-print</code>, fits snugly on the top of the T-profile steel fence post
 I wanted to mount it. Unless you have the same fenceposts as me, you will have to use some other mount.
 </li>
