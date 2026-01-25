@@ -1,0 +1,33 @@
+{
+    "fileFormatVersion": "1",
+    "parameterSets": {
+        "hex": {
+            "base_diameter_mm": "120",
+            "base_disk_thickness": "5",
+            "base_funnel_thread_diameter_mm": "105",
+            "base_funnel_thread_height_mm": "14",
+            "base_funnel_thread_pitch_height_mm": "2.5",
+            "bucket_display_rotation": "15",
+            "bucket_hex_insert_flat_mm": "11.1",
+            "bucket_hex_surround_mm": "1",
+            "bucket_inner_triangle_fill_height": "8",
+            "bucket_inner_triangle_fill_width": "8",
+            "bucket_width": "70",
+            "bucket_z_height": "25",
+            "cable_holder": "false",
+            "funnel_height_mm": "120",
+            "funnel_inner_height_mm": "70",
+            "funnel_strainer_horz_thick_mm": "1.5",
+            "funnel_strainer_z_thick_mm": "1.5",
+            "funnel_tip_id_mm": "8",
+            "funnel_tip_wall_thick_mm": "1",
+            "show_base": "false",
+            "show_base_supports": "false",
+            "show_bucket": "false",
+            "show_cellAACover": "false",
+            "show_flange": "false",
+            "show_funnel": "true",
+            "view_as_assembled": "4"
+        }
+    }
+}

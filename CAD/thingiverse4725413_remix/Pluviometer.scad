@@ -23,7 +23,7 @@ use <threads.scad>
 
 cable_holder = false;
 
-view_as_assembled = 1; // [1:as assembled, 0:expoloded, 2:XZ cross seciton, 3:YZ cross section, 4:3D print, 5:intersect base&AA]
+view_as_assembled = 1; // [1:as assembled, 0:expoloded, 2:XZ cross section, 6:XZ' cross section, 3:YZ cross section, 4:3D print, 5:intersect base&AA]
 show_base = true;
 show_base_supports = false;
 show_flange = false;
@@ -33,6 +33,11 @@ show_funnel = true;
 
 funnel_height_mm = 120;
 funnel_inner_height_mm = 70;
+funnel_tip_id_mm = 5; //[0.1:.1:10]
+funnel_tip_wall_thick_mm = 1; // [0.1:.1:5]
+funnel_strainer_z_thick_mm = 0; // [0:.1:3]
+funnel_strainer_horz_thick_mm = 1; // [0:.1:3]
+
 base_diameter_mm = 120;
 
 number8MachineScrewBoltHoleDiameter = 25.4 * .18;
@@ -47,6 +52,15 @@ base_funnel_thread_pitch_height_mm = 2.5;
 base_mount_hole_diam_mm = number8MachineScrewBoltHoleDiameter;
 base_disk_thickness = 5;
 
+bucket_width = 70;
+bucket_z_height = 25; // [22:.1:40]
+bucket_display_rotation = 0;
+bucket_inner_triangle_fill_width = 25;
+bucket_inner_triangle_fill_height = 15;
+bucket_hex_insert_flat_mm = 0.1; // 11.1 for 1/4" nut
+bucket_hex_thickness_mm = 5.5;
+bucket_hex_surround_mm = 1.1;
+
 fnval = $preview ? 12 : 120;
 fn30val = $preview ? 10 : 30;
 $fn = $preview ? 12 : 120;
@@ -54,6 +68,10 @@ $fn = $preview ? 12 : 120;
 module __x__ () {} // stop the OpenSCAD customizer here
 
 bucket_slot_width_mm = 24;
+bucket_y_width_mm = 20;
+bucket_z_thickness_mm = 1;
+bucket_y_thickness_mm = 1;
+bucket_x_thickness_mm = 1;
 
 flange_start_z_mm = -23;
 flange_fastener_diameter_mm = 18;
@@ -79,20 +97,45 @@ module triangleI(x, y, z, c){
   polygon([[-1,0], [1,0], [0,1]], paths=[[0,1,2]]);
 }
 
+module bucket_hex(outer = true)
+{
+  if (bucket_hex_insert_flat_mm > 1)
+  {
+    n = 6;
+    inc = 360 / n;
+    hex = [for (s=[0:1:n-1], a = (inc/2) + s * inc) [cos(a), sin(a)]];
+    r = (bucket_hex_insert_flat_mm * 0.5 / hex[0][0]);
+    translate([0,-(bucket_y_width_mm-bucket_hex_thickness_mm-bucket_hex_surround_mm)/2, bucket_z_height - r - 3*bucket_hex_surround_mm])
+    rotate([90,0,0])
+      {
+        if (outer)
+        linear_extrude(h=bucket_hex_thickness_mm + bucket_hex_surround_mm, center=true)
+          offset(bucket_hex_surround_mm) 
+            polygon(hex * r);
+        else
+        translate([0,0,bucket_hex_surround_mm])
+          linear_extrude(h=bucket_hex_thickness_mm + bucket_hex_surround_mm, center=true)
+            polygon(hex * r);
+     }
+  }
+}
+
 module bucket(){
   one4 = 25.4 * .25;
   one8 = one4 * .5;
   magClearance = .008 * 25.4;
-  magY = 9;
+  magY = bucket_y_width_mm/2 - 1;
   magZ = 18;
   color("cyan")
   difference(){
     union(){
+      bucket_hex(true);
       difference(){
-        triangleI(70, 20, 25, true);
-        
-        translate([-70/4-1/2, 0, (25+1)/2]) cube([70/2, 20-2, 25-1], center = true);
-        translate([70/4+1/2, 0, (25+1)/2]) cube([70/2, 20-2, 25-1], center = true);
+        triangleI(bucket_width, bucket_y_width_mm, bucket_z_height, true);
+        translate([-bucket_width/4-bucket_x_thickness_mm/2, 0, (bucket_z_height+bucket_z_thickness_mm)/2]) 
+          cube([bucket_width/2, bucket_y_width_mm-bucket_y_thickness_mm*2, bucket_z_height-bucket_z_thickness_mm], center = true);
+        translate([bucket_width/4+bucket_x_thickness_mm/2, 0, (bucket_z_height+bucket_z_thickness_mm)/2]) 
+          cube([bucket_width/2, bucket_y_width_mm-bucket_y_thickness_mm*2, bucket_z_height-bucket_z_thickness_mm], center = true);
       }
       // centering the bucket
       linear_extrude(height=1)
@@ -112,12 +155,13 @@ module bucket(){
       linear_extrude(height=magOuterDx, center=true)
           polygon(magOuterYZProfile);
     
-      triangleI(25, 20, 15, true);
-    }
+      triangleI(bucket_inner_triangle_fill_width, bucket_y_width_mm, bucket_inner_triangle_fill_height, true);
+
+      }
     
     // pivot shaft hole
-    translate([0, 0, 3]) rotate([90, 0, 0]) cylinder(d=3.25, h=20, center=true, $fn=fn30val);
-
+    translate([0, 0, 3]) rotate([90, 0, 0]) cylinder(d=3.25, h=bucket_y_width_mm, center=true, $fn=fn30val);
+    bucket_hex(false);
     // magnet inner
     translate([0, magY, magZ])
     translate([0,one8/2])
@@ -478,6 +522,8 @@ module cellAACover()
 }
 
 module funnel(){
+  tip_z_height_mm = 10;
+  tip_z_extrude = tip_z_height_mm + 1 + (funnel_tip_id_mm - 5) * .75;
   color("white")
   {
     dim = 10 * sqrt(100/PI); // 10000 sq mm
@@ -498,16 +544,25 @@ module funnel(){
             cylinder(r=dim, h=funnel_height_mm+.1, center=false, $fn=fnval);
         }
         
-        
-        if (1) translate([0, 0, funnel_height_mm-funnel_inner_height_mm-10+2.5]) 
-          cylinder(d=7, h=10, center=false, $fn=fn30val);
+        translate([0, 0, funnel_height_mm-funnel_inner_height_mm-tip_z_height_mm+2.5]) 
+          cylinder(d=funnel_tip_id_mm+2*funnel_tip_wall_thick_mm, h=tip_z_extrude, center=false, $fn=fn30val);
       }
-    translate([0, 0, funnel_height_mm-funnel_inner_height_mm-10+2.5-.05]) 
-      cylinder(d=5, h=10.1, center=false, $fn=fn30val);
-  }
-  
+    hh = 25;
+    translate([0, 0, funnel_height_mm-funnel_inner_height_mm-hh/2+2.5-.05]) 
+      cylinder(d=funnel_tip_id_mm, h=hh, center=false, $fn=fn30val);
+   }
+    if (funnel_strainer_horz_thick_mm > 0.4 && funnel_strainer_z_thick_mm > 0.4)
+    {
+      translate([0, 0, tip_z_extrude + funnel_height_mm-funnel_inner_height_mm-tip_z_height_mm+2.5 - funnel_strainer_z_thick_mm/2 ]) 
+        {
+          cube([funnel_strainer_horz_thick_mm, funnel_tip_id_mm + funnel_tip_wall_thick_mm, funnel_strainer_z_thick_mm], center=true);
+          translate([0,0,-funnel_strainer_z_thick_mm])
+          rotate([0,0,90])
+          cube([funnel_strainer_horz_thick_mm, funnel_tip_id_mm + funnel_tip_wall_thick_mm, funnel_strainer_z_thick_mm], center=true);
+        }
+    }
+ 
    //thread  
-
   dim1 = dim+1;
   thickXY = base_funnel_thread_diameter_mm/8;
   hei = base_funnel_thread_height_mm + thickXY;
@@ -602,7 +657,7 @@ module assembled(){
       if (show_base_supports) base_supports();
     }
     if (show_flange) flange();
-    if (show_bucket) rotate([0, 0, 0]) translate([0, 0, -3]) bucket();
+    if (show_bucket) rotate([0, bucket_display_rotation, 0]) translate([0, 0, -3]) bucket();
     if (show_funnel) translate([0, 0, -18]) funnel();
 }
 
@@ -621,6 +676,13 @@ if (view_as_assembled != 0)
       intersection()
       {
         translate([0,100])
+          cube([200, 200, 200], center=true);
+        assembled();
+      }
+    else if (view_as_assembled == 6)
+       intersection()
+      {
+        translate([0,-100])
           cube([200, 200, 200], center=true);
         assembled();
       }
