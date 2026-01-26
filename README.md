@@ -161,8 +161,8 @@ PCB Parts
 <li>Sparkfun Arduino <a href='https://www.sparkfun.com/arduino-pro-mini-328-3-3v-8mhz.html'>Pro Mini</a> in 3.3V
 <li>Sparkfun <a href='https://www.sparkfun.com/rfm69hcw-wireless-transceiver-915mhz.html'>
 RFM69HCW</a></li>
-<li><a href=''>Si7210 I2C Hall effect sensor in SOT-23-5 package</li>
-<li><a href='https://www.ti.com/lit/ds/symlink/sn74hcs27.pdf'>SN74HCS27DR Triple 3-Input NOR Gates with Schmitt-Trigger Inputs in 14 SOIC package</li>
+<li><a href='https://www.silabs.com/documents/public/data-sheets/si7210-datasheet.pdf'>Si7210-B-04-IVR</a> I2C Hall effect sensor in SOT-23-5 package</li>
+<li><a href='https://www.ti.com/lit/ds/symlink/sn74hcs27.pdf'>SN74HCS27DR</a> Triple 3-Input NOR Gates with Schmitt-Trigger Inputs in 14 SOIC package</li>
 <li><a href='https://www.ti.com/lit/ds/symlink/tmp175.pdf'></a>TMP175 temperature sensor in 8 SOIC package
 <li>10M resistor size SMD 1206
 <li>2.7K resistor size SMD 1206
