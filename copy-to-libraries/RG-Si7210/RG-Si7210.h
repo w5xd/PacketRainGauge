@@ -8,6 +8,7 @@ public:
         SWOP_REGISTER_ADDRESS = 0xC6,
         SWHYST_REGISTER_ADDRESS = 0xC7,
         SWHYST_MASK = 0x3f,
+        SWFIELDPOSSELMASK = 0xc0,
         SLEEPTIMER_REGISTER_ADDRESS = 0xC9,
         SWTAMPER_ADDRESS = SLEEPTIMER_REGISTER_ADDRESS,
         SWTAMPER_SHIFT = 2,
@@ -17,6 +18,8 @@ public:
         LOW_FIELD_BIT_NUMBER = 7
     };
 
+    static_assert(static_cast<int>(SWHYST_MASK) | static_cast<int>(SWFIELDPOSSELMASK) == 0xff, "mask check");
+
     typedef int16_t MagField_t;
 
     Si7210(uint8_t addr) : SlaveAddress(addr), AmSleeping(false)
@@ -25,6 +28,8 @@ public:
     // decode the single-byte device setting to human understandable
     static uint16_t threshold(uint8_t sw_op) {
         sw_op &= 0x7f;
+        if (sw_op == 127)
+            return 0;
         uint16_t ret = 16 + (sw_op & 0xF);
         ret <<= (sw_op >> 4) & 0x7;
         return ret;
@@ -33,6 +38,8 @@ public:
     static uint16_t hysteresis(uint8_t sw_hyst)
     {
         sw_hyst &= 0x3f;
+        if (sw_hyst == 0x3f)
+            return 0;
         uint16_t ret = 8 + (sw_hyst & 7);
         ret <<= (sw_hyst >> 3) & 7;
         return ret;
@@ -95,7 +102,7 @@ public:
     }
 
     MagField_t readMagField()
-    {   // chip can read ±20.47 mT 
+    {   
         Wire.beginTransmission(SlaveAddress);
         Wire.write(FIELD_REGISTER_ADDRESS);
         Wire.endTransmission(false);
@@ -131,6 +138,26 @@ public:
         }
         return -1;
     }
+
+    void setOutputSense(bool lowOnStrongField)
+    {
+        Wire.beginTransmission(SlaveAddress);
+        Wire.write(SWOP_REGISTER_ADDRESS);
+        Wire.endTransmission(false);
+        Wire.requestFrom(SlaveAddress, static_cast<uint8_t>(1));
+        if (Wire.available())
+        {
+            uint8_t current = Wire.read();
+            current &= 1 << LOW_FIELD_BIT_NUMBER; // clear the sw_low4field bit
+            if (lowOnStrongField)
+                current |= 1 << LOW_FIELD_BIT_NUMBER; // set the sw_low4field bit
+            Wire.beginTransmission(SlaveAddress);
+            Wire.write(SWOP_REGISTER_ADDRESS);
+            Wire.write(current);
+            Wire.endTransmission();
+            return current;
+        }
+   }
 
     uint8_t getSwTamper()
     {
@@ -215,6 +242,25 @@ public:
             ret = hysteresis(curValue);
         }
         return ret;
+    }
+
+    void setFieldPolSel(uint8_t v)
+    {
+        v <<= 6;
+        Wire.beginTransmission(SlaveAddress);
+        Wire.write(SWHYST_REGISTER_ADDRESS);
+        Wire.endTransmission(false);
+        Wire.requestFrom(SlaveAddress, static_cast<uint8_t>(1));
+        if (Wire.available())
+        {
+            uint8_t curValue = Wire.read();
+            Wire.beginTransmission(SlaveAddress);
+            Wire.write(SWHYST_REGISTER_ADDRESS);
+            curValue &= ~SWFIELDPOSSELMASK;
+            curValue |= v;
+            Wire.write(curValue);
+            Wire.endTransmission();
+        }
     }
 
     uint8_t getSwHyst()

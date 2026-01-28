@@ -23,10 +23,10 @@
     <None Include="TestSi7210\TestSi7210.ino" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="copy-to-libraries\Si7210\Si7210.h">
+    <ClInclude Include="copy-to-libraries\RG-Si7210\RG-Si7210.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="copy-to-libraries\Tmp175\Tmp175.h">
+    <ClInclude Include="copy-to-libraries\RG-Tmp175\RG-Tmp175.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

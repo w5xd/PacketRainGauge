@@ -2,19 +2,28 @@
 // 2wire interface for TMP175 temperature sensor
 class TMP175 {
 public:
-    TMP175(uint8_t addr) : SlaveAddress(addr)
+    TMP175(uint8_t addr, unsigned SettleTimeMsec = SETTLE_TIME_MSEC) : SlaveAddress(addr), SettleTimeMsec(SettleTimeMsec)
     {}
-    int16_t readTempCx16()
+
+    void startReadTemperature()
     {
         Wire.beginTransmission(SlaveAddress);
         writePointerRegister(CONFIGURATION_REG);
-        // R1 without R0 means 10 bit conversion (1/4 degree C) in 55msec
+        // R0 without R1 means 10 bit conversion (1/4 degree C) in 55msec
         // OS means one-shot
         // SD means shut down immediately after the one-shot conversion
-        uint8_t config = OS | SD | R1;
+        uint8_t config = OS | SD | R0;
         Wire.write(config);
-        Wire.endTransmission();
-        delay(60); // let temperature ADC settle--depends on R0/R1
+        Wire.endTransmission(); 
+        MsecWhenStartedTemperature = millis();
+    }
+
+    int16_t finishReadTempCx16()
+    {
+        long tmp175Delay = millis() - MsecWhenStartedTemperature;
+        tmp175Delay = static_cast<long>(SettleTimeMsec) - tmp175Delay;
+        if (tmp175Delay > 0)
+            delay(tmp175Delay);
 
         Wire.beginTransmission(SlaveAddress);
         writePointerRegister(TEMPERATURE_REG);
@@ -36,6 +45,18 @@ public:
         }
         return tempCtimes256 >> 4;
     }
+
+    void delayForADC()
+    {
+        delay(SettleTimeMsec); // let temperature ADC settle--depends on R0/R1
+    }
+
+    int16_t readTempCx16()
+    {
+        startReadTemperature();
+        delayForADC();
+        return finishReadTempCx16();
+    }
     float scale() const { return 1/16.f;}
     void setup()
     {
@@ -45,12 +66,13 @@ public:
         Wire.write(config);
         Wire.endTransmission();
     }
+
     void dump()
     {
         for (int i = 0; i < NUM_POINTERS; i += 1)
         {
             Wire.beginTransmission(SlaveAddress);
-            writePointerRegister(i);
+            writePointerRegister(static_cast<Pointer_t>(i));
             Wire.endTransmission(false);
             Wire.requestFrom(SlaveAddress, static_cast<uint8_t>(2));
             Serial.print("Dump config="); 
@@ -64,6 +86,7 @@ public:
         }
     }
 private:
+    enum {SETTLE_TIME_MSEC = 60 };
     const uint8_t SlaveAddress;
     enum Pointer_t { TEMPERATURE_REG, CONFIGURATION_REG, T_LOW_REG, T_HIGH_REG, NUM_POINTERS};
     enum Configuration_t {
@@ -75,6 +98,6 @@ private:
     {
         Wire.write(static_cast<uint8_t>(pointerReg));
     }
-
-    static const float Scale;
+    unsigned long MsecWhenStartedTemperature;
+    unsigned SettleTimeMsec;
 };
