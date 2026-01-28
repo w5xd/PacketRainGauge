@@ -1,7 +1,7 @@
 # Packet Rain Gauge
 
 This design is for a device that telemeters a packet when a magnet approaches, and
-again when it retreats from a hall effect sensor model Si7210. It consists
+again when it retreats from a hall effect sensor. It consists
 of a Printed Circuit Board (PCB) design, an Arduino sketch, and two variations on a funnel
 that catches rain. One variant is a retrofit to install in a discarded rain gauge funnel
 from an Oregon Scientific RGR126N Wireless Rain Gauge. If you don't 
@@ -67,10 +67,8 @@ to the relay
 as the rocker passed top dead center
 in both directions, which means the rocker was moving relatively quickly as the relay sensed it.  
 
-The
-Si7210 hall effect magnetic sensor is used in this design instead of a reed relay. The Si7210
-senses at 5 times per second which is a little slow to
-reliably detect fast passage of the magnet through top dead center. However, the Si7210 can
+The hall effect magnetic sensor is used in this design instead of a reed relay. The sketch
+and sensor can
 easily be programmed to separately detect the arrival and the departure of the magnet from
 proximity to the sensor. This design does that. It positions its sensor
 in close alignment with the rocker at its resting position with one
@@ -84,14 +82,14 @@ as the old one, just not quite at the exact same rocker positions.
 
 
 The sensor manufacturer publishes a detailed discussion about magnets&mdash;including details
-about this exact scenario: replacing a reed relay with an Si7210&mdash;about how the
+about this exact scenario: replacing a reed relay with a hall effect sensor&mdash;about how the
 magnet axis and sensor geometry are related: 
 <a href='https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf'>
 https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf<a>.
 A K&J Magnetics B422 magnet conveniently matches the original magnet's dimensions to
 fit in the original rocker, and has its
 poles aligned so that its
-pole axis as required to penetrate the Si7210 when mounted in the original rocker.
+pole axis as required to penetrate the IC sensor when mounted in the original rocker.
 
 The original water tight
 battery compartment is retained, but after removing the PCB that shares the
@@ -195,7 +193,7 @@ solder them one pin at a time.
 
 The PCB circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
 
-The Si7210 is mounted to the <i>bottom</i> of the PCB. 
+The hall effect sensor is mounted to the <i>bottom</i> of the PCB. 
 <p align='center'><img src='PCB/IMGP2913-v.jpg' alt='PCB bottom'/></p>
 This is the only part on the bottom.
 I used an SMD oven to mount it first (and nothing else in the oven with it.) After it cooled off, 
@@ -331,6 +329,16 @@ slide it only 1/4" or so in all directions. If you have a pole directly facing t
 desired orientation) the sign will not change on the magnetic field. If you have and edge toward
 the sensor, the sign will change. (Why a sign change? if the N/S poles are sideways toward the
 sensor, moving it slightly will put the N and S alternately nearer to the sensor.)
+
+<h3>Si7210 end-of-support and the AH1383</h3>
+Silicon Labs has announced end of support for the Si7210. The Diodes Incorporated AH1383
+is supported here. AS OF THIS WRITING, THE AH1383 DESIGN HAS NOT BEEN BUILT NOR TESTED.
+The AH1383 happens to fit on the same solder pads as the si7210, but has no I2C port.
+But it does have an active low output that indicates when the magnetic field applied
+exceeds its threshold. The magnet must be chosen to exceed that threshold as does
+the magnet specified above (or substitute the magnet and the AH1382 or AH1381 for 
+lower thresholds).
+
 <h3>Sketch parameter setup</h3>
 This advice applies to both physical arrangements, the Oregon Scientific funnel retrofit, and 
 3D printable design presented here. 
