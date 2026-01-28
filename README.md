@@ -325,8 +325,46 @@ close-in
 readings in the magnetic sensor, the other will give negative.) You can also use the assembled
 PCB and sketch to read out the magnetic field with the magnet close. When oriented properly,
 it will read the maximum magnitude (either + or -, either pole axis works
-fine with the sketch) about 16000.
-
+fine with the sketch) about 16000. Use the sketch's <code>ReadModeForSeconds</code> command to
+make the magnetic field print out continuously. Hold the magnet directly over the Si7210 and then
+slide it only 1/4" or so in all directions. If you have a pole directly facing the sensor (the 
+desired orientation) the sign will not change on the magnetic field. If you have and edge toward
+the sensor, the sign will change. (Why a sign change? if the N/S poles are sideways toward the
+sensor, moving it slightly will put the N and S alternately nearer to the sensor.)
+<h3>Sketch parameter setup</h3>
+This advice applies to both physical arrangements, the Oregon Scientific funnel retrofit, and 
+3D printable design presented here. 
+<ul><li>Mount the magnet with either its N
+or S pole facing the sensor as described in the previous section.</li>
+<li>The recommended Si7210 interrupt threshold and hysteresis settings are a relatively
+low magnitude (1500 out of a maximum of 16000) and small hysteresis (8 out of 1792). The commands
+are:
+<pre>
+<code>SetSWOP 0x64
+SetSWHYST 0
+</code></pre></li>
+<li>The Si7210 interrupts per the previous item, but the chip's interrupt output does not
+directly correspond to the magnet position. The sketch, therefore, is coded to originate
+a notification of a rocker move based on the magnetic field going outside the range
+specified as below. 
+<pre>
+If the North pole faces the sensor:
+<code>SetNearThreshold 1500
+SetFarThreshold 0
+SetSignedThreshold 0
+</code>If the South pole faces the sensor:<code>
+SetNearThreshold -1500 <i>Note it is negative</i>
+SetFarThreshold 0
+SetSignedThreshold 1
+</code>
+</pre>
+The NearThreshold and FarThreshold are signed, and need to be different based on the
+magnet orientation. The OP and HYST values in the Si7210 are not signed, and do not
+depend on the magnet orientation.
+</li>
+</ul>
+The sketch, per the above settings, is waked up by any motion of the magnet around the value 1500,
+and then polls the magnetic field looking for it to go outside the range NearThreshold and FarThreshold.
 <h3>How many signals per inch of rain?</h3>
 The original Oregon Scientific part, by my observation, sends an update every 1mm of rainfall. In the retrofit,
 I measured the device to send an update about every 1.2mm of rainfall. I attribute the difference

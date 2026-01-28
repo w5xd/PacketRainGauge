@@ -11,15 +11,12 @@
 * The Si7210 has a built in temperature sensor, specified as +/-4C. The TMP175 is
 * specified as +/-1C
 * 
-* The default magnetic field amplitude threshold and hysteresis give more interrupts
-* than these settings:
-* EEPROM raw =0x65 threshold=1344
-* EEPROM raw=0x30 hysteresis = 512
-* si7210 tamper= 63
-* 
-* Serial port Commands to set the si7210 as above:
-* SetSWOP 65
-* SetSWHYST 30
+* See README.md for advice on setting parameters in this sketch for
+*    Si7210 operation threshold and hysteresis
+*    NearThreshold and FarThreshold and SignedThreshold
+* For best results, all need to be customized from their defaults
+* based on exactly how your magnet is physically oriented w.r.t.
+* the Si7210
 */
 
 #include <RadioConfiguration.h>
@@ -51,10 +48,10 @@
 
 //#define FLASH_LED_ON_WAKEUP // for debugging
 
-#define FAR_THRESHOLD(X) X/8
-#define NEAR_THRESHOLD(x) x / 2
+#define FAR_THRESHOLD(X) (X)/32
+#define NEAR_THRESHOLD(x) (x)/6
 
-#define REVISION "REV06"
+#define REVISION "REV07"
 
 #if defined(USE_RFM69)
 #include <RFM69.h>
@@ -68,7 +65,10 @@ namespace {
         PACKET_RAINGAUGE_DISABLE_SERIAL = PACKET_RAINGAUGE_SLEEP_LOOP_COUNT + sizeof(unsigned),
         PACKET_RAINGAUGE_SWOP = PACKET_RAINGAUGE_DISABLE_SERIAL + 1,
         PACKET_RAINGAUGE_SWHYST = PACKET_RAINGAUGE_SWOP + 1,
-        PACKET_RAINGAUGE_END = PACKET_RAINGAUGE_SWHYST + 1
+        PACKET_RAINGAUGE_NEAR = PACKET_RAINGAUGE_SWHYST + 1,
+        PACKET_RAINGAUGE_FAR = PACKET_RAINGAUGE_NEAR + sizeof(Si7210::MagField_t),
+        PACKET_RAINGAUGE_SIGNED = PACKET_RAINGAUGE_FAR + sizeof(Si7210::MagField_t),
+        PACKET_RAINGAUGE_END = PACKET_RAINGAUGE_SIGNED + 1
     };
     const int BATTERY_PIN = A0; // digitize (fraction of) battery voltage
     const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
@@ -91,7 +91,6 @@ namespace {
 
     const unsigned long FirstListenAfterTransmitMsec = 20000;// at system reset, listen Serial/RF for this long
     const unsigned long NormalListenAfterTransmit = 300;// after TX, go to RX for this long
-    
 
 #if defined(USE_RFM69)
 // RFM69 frequency, uncomment the frequency of your module:
@@ -107,11 +106,14 @@ namespace {
     const int RFM69_CHIP_SELECT_PIN = 10;
     const int RFM69_INT_PIN = 2;
     const uint8_t GATEWAY_NODEID = 1;
-
  
     // Create a library object for our RFM69HCW module:
     RFM69 radio(RFM69_CHIP_SELECT_PIN, RFM69_INT_PIN, true);
 #endif
+
+    int16_t FarThreshold = FAR_THRESHOLD(Si7210::getMaxAmplitude());
+    int16_t NearThreshold = NEAR_THRESHOLD(Si7210::getMaxAmplitude());
+    uint8_t SignedThreshold = 0xff;
 
     bool getOnloopSerialDisable()
     {
@@ -147,7 +149,24 @@ namespace {
         int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SWHYST);
         EEPROM.write(addr, v);
     }
-
+    void setNearThreshold(int16_t v)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_NEAR);
+        EEPROM.put(addr, v);
+        NearThreshold = v;
+    }
+    void setFarThreshold(int16_t v)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_FAR);
+        EEPROM.put(addr, v);
+        FarThreshold = v;
+     }
+    void setSignedThreshold(uint8_t v)
+    {
+        int addr = static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SIGNED);
+        EEPROM.put(addr, v);
+        SignedThreshold = v;
+     }
 
 #if defined(TELEMETER_BATTERY_V)
     void ResetAnalogReference();
@@ -169,6 +188,9 @@ namespace {
 
     bool enableSerial = true;
     bool radioOK = false;
+
+    auto ReadModeStop = millis();
+    bool readMode = false;
 }
 
 namespace {
@@ -180,6 +202,10 @@ namespace {
         const char VER[] = "VER";
         const char DUMP_RFM69[] = "DumpRFM69";
         const char SET_SERIALONLOOP[] = "DisableSerialOnLoop";
+        const char SET_NEAR_THRESHOLD[] = "SetNearThreshold";
+        const char SET_FAR_THRESHOLD[] = "SetFarThreshold";
+        const char SET_SIGNED_THRESHOLD[] = "SetSignedThreshold";
+        const char READ_MODE_SECONDS[] = "ReadModeForSeconds";
 }
 
 void setup()
@@ -266,7 +292,7 @@ void setup()
     if (swop != 0xffu)
     {
         threshold = si7210.setSwOp(swop);
-        Serial.print("EEPROM raw =0x"); 
+        Serial.print(F("SWOP EEPROM raw =0x")); 
         Serial.print((int)swop, HEX);
         Serial.print(" threshold=");
         Serial.println(threshold);
@@ -277,7 +303,7 @@ void setup()
     if (hyst != 0xffu)
     {
         hysteresis = si7210.setSwHyst(hyst);
-        Serial.print("EEPROM raw=0x");
+        Serial.print(F("SWHYST EEPROM raw=0x"));
         Serial.print((int) hyst, HEX);
         Serial.print(" hysteresis = ");
     }
@@ -316,6 +342,19 @@ void setup()
     Serial.print(SET_SERIALONLOOP);
     Serial.print(" ");
     Serial.println(getOnloopSerialDisable() ? "ON" : "OFF");
+
+    uint16_t temp;
+    EEPROM.get(static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_NEAR), temp);
+    if (temp < Si7210::getMaxAmplitude())
+        NearThreshold = temp;
+    EEPROM.get(static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_FAR), temp);
+    if (temp < Si7210::getMaxAmplitude())
+        FarThreshold = temp;
+    EEPROM.get(static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SIGNED), SignedThreshold);
+ 
+    Serial.print("Theshold Near="); Serial.println(NearThreshold);
+    Serial.print("Theshold Far="); Serial.println(FarThreshold);
+    Serial.print("Theshold Signed="); Serial.println((int)SignedThreshold);
 
     tmp175.startReadTemperature();
     Serial.println("Setup complete");
@@ -370,32 +409,28 @@ namespace {
                     return true;
                 }
             }
-        }
-        else if (strncmp(pCmd, VER, sizeof(VER) - 1) == 0)
+        }else if (strncmp(pCmd, VER, sizeof(VER) - 1) == 0)
         {
 #if defined(USE_SERIAL)
             Serial.println("Revision 03");
 #endif
             return true;
-        }
-        else if (q = strstr(pCmd, SET_SERIAL))
+        }else if (q = strstr(pCmd, SET_SERIAL))
         {
             q += sizeof(SET_SERIAL)-1;
             while (isspace(*q)) q += 1;
             SetSerialEnabled(*q == '1');
             return true;
-        }
-        else if (q = strstr(pCmd, SET_SERIALONLOOP))
+        }else if (q = strstr(pCmd, SET_SERIALONLOOP))
         {
             q += sizeof(SET_SERIALONLOOP) - 1;
             while (isspace(*q)) q += 1;
             setOnloopSerialDisable(*q == '1');
             return true;
-        }
-        else if (q = strstr(pCmd, SET_THRESHOLD))
+        }else if (q = strstr(pCmd, SET_THRESHOLD))
         {
             q += sizeof(SET_THRESHOLD) - 1;
-            uint8_t v = strtol(q, 0, 16);
+            uint8_t v = strtol(q, 0, 0);
             setRaingaugeSwop(v);
             if (enableSerial)
             {
@@ -403,11 +438,10 @@ namespace {
                 Serial.println(si7210.setSwOp(v));
             }
             return true;
-        }
-        else if (q = strstr(pCmd, SET_HYSTERESIS))
+        }else if (q = strstr(pCmd, SET_HYSTERESIS))
         {
             q += sizeof(SET_HYSTERESIS) - 1;
-            uint8_t v = strtol(q, 0, 16);
+            uint8_t v = strtol(q, 0, 0);
             setRaingaugeSwHyst(v);
             if (enableSerial)
             {
@@ -415,18 +449,44 @@ namespace {
                 Serial.println(si7210.setSwHyst(v));
             }
             return true;
-        }
-        else if (q = strstr(pCmd, SET_TOOTP))
+        }else if (q = strstr(pCmd, SET_NEAR_THRESHOLD))
+        {
+            q += sizeof(SET_NEAR_THRESHOLD) - 1;
+            int16_t v = strtol(q, 0, 0);
+            setNearThreshold(v);
+            return true;
+        }else if (q = strstr(pCmd, SET_FAR_THRESHOLD))
+        {
+            q += sizeof(SET_FAR_THRESHOLD) - 1;
+            int16_t v = strtol(q, 0, 0);
+            setFarThreshold(v);
+            return true;
+        }else if (q = strstr(pCmd, SET_SIGNED_THRESHOLD))
+        {
+            q += sizeof(SET_SIGNED_THRESHOLD) - 1;
+            uint16_t v = strtol(q, 0, 0);
+            setSignedThreshold(v);
+            return true;
+        }else if (q = strstr(pCmd, SET_TOOTP))
         {
             setRaingaugeSwHyst(0xff);
             setRaingaugeSwop(0xff);
             si7210.resetToOTP();
             si7210.wakeup(); // resetToOTP set sleep()
             return true;
-        }
-        else if (q = strstr(pCmd, DUMP_RFM69))
+        }else if (q = strstr(pCmd, DUMP_RFM69))
         {
             radio.readAllRegs();
+            return true;
+        }else if (q = strstr(pCmd, READ_MODE_SECONDS))
+        {
+            q += sizeof(READ_MODE_SECONDS) - 1;
+            uint8_t v = static_cast<uint8_t>(strtol(q, 0, 0));
+            if (v > 0)
+            {
+                ReadModeStop = millis() + 1000 * static_cast<long>(v);
+                readMode = true;
+            }
             return true;
         }
         return false;
@@ -554,11 +614,14 @@ void loop()
     */
 
     bool rainActivated = false;
-    
-    // if magnetic sensor interrupt is active, switch it to its other sense
+     // if magnetic sensor interrupt is active, switch it to its other sense
     if (digitalRead(ROCKER_INPUT_PIN) == LOW)
     { /* I only have one job under this funnel, and I'm going to do it.*/
-        si7210.toggleOutputSense(); // do this only once per wakeup
+        auto os = si7210.toggleOutputSense();
+        #if 0//defined(USE_SERIAL)
+        Serial.print("toggleOutputSense: 0x");
+        Serial.println(static_cast<int>(os), HEX);
+        #endif
         for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
         {
             delay(1); // give ROCKER_INPUT_PIN time to respond
@@ -573,8 +636,7 @@ void loop()
 
     si7210.one();
     delayMicroseconds(si7210.CONVERSION_TIME_MICROSECONDS);
-    Si7210::MagField_t magField;
-    
+    Si7210::MagField_t magField;  
     for (int i = 0;;)
     {
         magField = si7210.readMagField();
@@ -584,45 +646,108 @@ void loop()
             return; // do loop() again
     }
 
-#if 1 // compute rainActivated using the magnetic field amplitude rather than the si7210 output pin
-    const Si7210::MagField_t FarThreshold = FAR_THRESHOLD(Si7210::getMaxAmplitude());
-    const Si7210::MagField_t NearThreshold = NEAR_THRESHOLD(Si7210::getMaxAmplitude());
-    Si7210::MagField_t amplitude = magField;
-    if (amplitude < 0)
-        amplitude = -amplitude;
-    bool MagIsClose = amplitude > NearThreshold;
-    bool MagIsFar = amplitude < FarThreshold;
-
-#if defined(SERIAL_DEBUG_OUTPUT) && defined(USE_SERIAL) // for debugging
-    static auto lastPrinted = millis();
-    static const unsigned PRINT_INTERVAL_MSEC = 200;
-    auto toPrint = millis();
-    if (toPrint - lastPrinted > PRINT_INTERVAL_MSEC)
+    if (readMode)
     {
-        Serial.print("magField = "); Serial.println(magField);
+        if (now > ReadModeStop)
+             readMode = false;
+        else
+        {
+            #if defined(USE_SERIAL)
+            if (enableSerial)
+            {
+                Serial.print(F("Magfield: "));
+                Serial.println(magField);
+            }
+            #endif
+        }
+    }
+
+#if 1 // compute rainActivated using the magnetic field amplitude rather than the si7210 output pin
+    bool MagIsClose(false);
+    bool MagIsFar(false);
+    switch (SignedThreshold)
+    {
+        case 0: // positive
+            MagIsClose = magField > NearThreshold;
+            MagIsFar = magField < FarThreshold;
+            break;
+        case 1: // negative
+            MagIsClose = magField < NearThreshold;
+            MagIsFar = magField > FarThreshold;
+            break;
+        default:
+            Si7210::MagField_t amplitude = magField;
+            if (amplitude < 0)
+                amplitude = -amplitude;
+            MagIsClose = amplitude > NearThreshold;
+            MagIsFar = amplitude < FarThreshold;
+        break;
+    }
+      
+    rainActivated = !(!MagIsClose && !MagIsFar); // only report farther than FAR_THRESHOLD or nearer than NEAR_THRESHOLD
+    static const int MAX_MAG_SAVED_BETWEEN = 1 << 2;  // Must be a power of 2 for opimized modular arithmetic
+    static uint8_t newestMagIndex = 0;
+    static uint8_t oldestMagIndex = 0; // no entries when newest/oldest match
+    //#define DBG_DIR
+    #if defined(DBG_DIR)
+    auto prevnew = newestMagIndex;
+    auto prevold = oldestMagIndex;
+    #endif
+    if (!rainActivated)
+    {   // extend the wakeup timer if we observe a rate of change...
+        static const Si7210::MagField_t MinChangeToExtendTimer = 400; // ... by this or more
+        static const Si7210::MagField_t MinChangetoSave = 20; // keep list of mags different by this much
+        static Si7210::MagField_t savedMagnitudesBetween[MAX_MAG_SAVED_BETWEEN];
+        auto i = oldestMagIndex;
+        for (; i != newestMagIndex; i += 1, i &= MAX_MAG_SAVED_BETWEEN-1)
+        {
+            auto diff = magField - savedMagnitudesBetween[i];
+            if (diff < 0)
+                diff = -diff;
+            if (diff <= MinChangetoSave)
+                goto not_rainActivated; // discard small diff
+            else if (diff >= MinChangeToExtendTimer)
+            {
+                // extend sleep timer while magfield is "in between"
+                newestMagIndex = oldestMagIndex = 0;
+                TimeOfWakeup = now; 
+#if defined(DBG_DIR)
+                Serial.println("****************extending TimeOfWakeup*********");
+#endif
+                goto not_rainActivated;
+            }
+        } 
+        // keep this one, discarding oldest, if necessary
+        savedMagnitudesBetween[newestMagIndex] = magField;        
+        newestMagIndex += 1; newestMagIndex &= MAX_MAG_SAVED_BETWEEN-1; // modular add
+        if (newestMagIndex == oldestMagIndex)
+        {
+            oldestMagIndex += 1; oldestMagIndex &= MAX_MAG_SAVED_BETWEEN-1; // modular add
+        }
+     }
+    else
+    {
+        newestMagIndex = oldestMagIndex = 0;
+        rainActivated = prevSentMagnetClose ^ MagIsClose; // only report when its changed
+    }
+not_rainActivated:
+#if defined(DBG_DIR)
+    if (prevnew != newestMagIndex || prevold != oldestMagIndex)
+    {
+    Serial.print("oldestMagIndex="); Serial.print((int)oldestMagIndex);
+    Serial.print("  newestMagIndex="); Serial.print((int)newestMagIndex);
+    Serial.print("  magField="); Serial.println(magField);
     }
 #endif
-     
-    rainActivated = !(!MagIsClose && !MagIsFar); // only report farther than FAR_THRESHOLD or nearer than NEAR_THRESHOLD
-    if (!rainActivated)
-        TimeOfWakeup = now; // extend sleep timer while magfield is "in between"
-    else
-        rainActivated = prevSentMagnetClose ^ MagIsClose; // only report when its changed
+
     if (rainActivated)
         prevSentMagnetClose = MagIsClose;
 #endif
 
-#if defined(SERIAL_DEBUG_OUTPUT) && defined(USE_SERIAL) // for debugging
-    if (toPrint - lastPrinted > PRINT_INTERVAL_MSEC)
-    {
-    Serial.print("rainActivated = "); Serial.println(static_cast<int>(rainActivated));
-    lastPrinted = toPrint;
-    }
-#endif
 
     if (rainActivated ||
         (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
-    {   
+    { 
         TransmittedSinceSleep = true; /* Transmit at least once per wakeup. */
         int batt(0);
 #if defined(TELEMETER_BATTERY_V)
@@ -692,14 +817,11 @@ void loop()
     #endif
 }
 
-#if !defined(SLEEP_WITH_TIMER2)
 void sleepPinInterrupt()	// requires 10uF and 10M between two pins
 {
     // run at interrupt level. disables further interrupt from this source
     detachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN));
 }
-#else
-#endif
 
 namespace {
     unsigned SleepTilNextInterrupt()
@@ -737,7 +859,6 @@ namespace {
 
         unsigned count = 0;
 
-#if !defined(SLEEP_WITH_TIMER2)
         // this uses R1 and C1 to ground
         while (count < SleepLoopTimerCount)
         {
@@ -760,7 +881,7 @@ namespace {
             sei();
             count += 1;
         }
-#endif
+
 
         power_all_enable();
 
