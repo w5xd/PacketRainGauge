@@ -59,7 +59,7 @@
 #if PCB_REV_NUMBER >= 3 || !defined(USE_AH1383)
 #define EXPERIMENTAL_AH1383_ON_PCBV2 0
 #else
-// This is not a viable solution to install because it telemeters NOTHING while the bucket magnet
+// This is not a viable solution for permanent install because it telemeters NOTHING while the bucket magnet
 // is on the sensor. But it works normally if the bucket stops rocking away from the magnet.
 #define EXPERIMENTAL_AH1383_ON_PCBV2 1 
 #endif
@@ -161,9 +161,9 @@ namespace {
     ** 3. the hall effect sensor AL pin that indicates the approach or departure of a magnet
     **
     ** The RFM69 is on INT0
-    ** The RC circuit and the hall effect share INT1 through the single gate logic at U10, U11, U12
-    ** Both are also routed to dedicated input pins on the Arduino, D8 and D16, respectively,
-    ** so the sketch can tell which was the cause.
+    ** INT1 is shared by the RC circuit and the hall effect through the NOR at U11.
+    ** Both signals are also routed to dedicated input pins on the Arduino, D17 and D16, respectively,
+    ** so the interrupt handler on the sketch can distinguish the cause.
     */
 
     const unsigned long FirstListenAfterTransmitMsec = 20000;// at system reset, listen Serial/RF for this long
@@ -884,7 +884,10 @@ void Pcb3Si7210::DoReadMode(unsigned long now, Si7210::MagField_t magField)
     {
         if (enableSerial)
         {
-            Serial.print(F("Magfield: "));
+            auto v = digitalRead(ROCKER_INPUT_PIN);
+            Serial.print(F("Int="));
+            Serial.print(v);
+            Serial.print(F(" Magfield: "));
             Serial.println(magField);
         }
     }
@@ -1023,6 +1026,9 @@ void Ah1383::DoReadMode(unsigned long now, Si7210::MagField_t magField)
             static auto prevMagfield = -magField;
             if (magField != prevMagfield)
             {
+                auto v = digitalRead(ROCKER_INPUT_PIN);
+                Serial.print(F("Int="));
+                Serial.print(v);
                 Serial.print(F("Magfield: "));
                 Serial.println(magField);
                 prevMagfield = magField;
