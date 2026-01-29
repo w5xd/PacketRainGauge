@@ -1,5 +1,5 @@
 /* Packet rain gauge
-* This sketch is to run on a Pro Mini on a PCB with a hall effect magnet sensor, Si7210.
+* This sketch is to run on a Pro Mini on a PCB with a hall effect magnet sensor.
 * It originates a packet for both the arrival and departure of a magnet
 * to its sensor. The usual application is to mount a magnet on
 * a rocker under a rain gauge funnel.
@@ -8,16 +8,11 @@
 * from a TMP175 sensor and a battery voltage level. It also originates packets
 * on a timed interval in the absence of rainfail.
 * 
-* The Si7210 has a built in temperature sensor, specified as +/-4C. The TMP175 is
-* specified as +/-1C
-* 
-* See README.md for advice on setting parameters in this sketch for
-*    Si7210 operation threshold and hysteresis
-*    NearThreshold and FarThreshold and SignedThreshold
-* For best results, all need to be customized from their defaults
-* based on exactly how your magnet is physically oriented w.r.t.
-* the Si7210
-*/
+***************************************************
+* This version of the sketch REQUIRES PCB version 3
+* PCB 3 switches D16/D17, adds D7 output, and
+* allows for either Si7210 or AHE1383 as sensor
+***************************************************/
 
 #include <RadioConfiguration.h>
 #include <SPI.h>
@@ -42,20 +37,96 @@
 
 // Include the RFM69 and SPI libraries:
 #define USE_RFM69
-#define USE_SERIAL
 #define TELEMETER_BATTERY_V
-//#define SERIAL_DEBUG_OUTPUT
 
 //#define FLASH_LED_ON_WAKEUP // for debugging
 
 #define FAR_THRESHOLD(X) (X)/32
 #define NEAR_THRESHOLD(x) (x)/6
 
-#define REVISION "REV07"
+#define REVISION "REV08"
+#define PCB_REV_NUMBER 2 // Sketch supports versions 2 or 3 only
+
+// Only one of the following may be defined
+//#define USE_AH1383
+#define USE_S7210
 
 #if defined(USE_RFM69)
 #include <RFM69.h>
 #include <RFM69registers.h>
+#endif
+
+#if PCB_REV_NUMBER >= 3 || !defined(USE_AH1383)
+#define EXPERIMENTAL_AH1383_ON_PCBV2 0
+#else
+// This is not a viable solution to install because it telemeters NOTHING while the bucket magnet
+// is on the sensor. But it works normally if the bucket stops rocking away from the magnet.
+#define EXPERIMENTAL_AH1383_ON_PCBV2 1 
+#endif
+
+class Pcb3Si7210
+{   // The Si7210 is an I2C part that can read mag fields and has various parameters
+    // Its "alert" output is wired to the Arduino ROCKER_INPUT_PIN
+ public:
+    Pcb3Si7210() : si7210(0x33)
+    {}
+    static uint16_t threshold(uint8_t sw_op) { return Si7210::threshold(sw_op);}
+    static uint16_t hysteresis(uint8_t sw_hyst){return Si7210::hysteresis(sw_hyst);}
+    bool isSleeping() const { return si7210.isSleeping();}
+    void wakeup() {  si7210.wakeup();}
+    uint8_t sleep(bool fromOTP = true) { return si7210.sleep(fromOTP);}
+    void resetToOTP() {  si7210.resetToOTP();}
+    void one() {  si7210.one();}
+    Si7210::MagField_t readMagField(){return si7210.readMagField();}
+    int16_t toggleOutputSense(){return si7210.toggleOutputSense();}
+    void setOutputSense(bool v){si7210.setOutputSense(v);}
+    uint8_t getSwTamper(){return si7210.getSwTamper();}
+    uint16_t setSwOp(uint8_t v){return si7210.setSwOp(v);}
+    uint8_t getSwOp(){return si7210.getSwOp();}
+    uint16_t setSwHyst(uint8_t v){return si7210.setSwHyst(v);}
+    void SetupSwHyst(uint8_t hyst);
+    void setFieldPolSel(uint8_t v){return si7210.setFieldPolSel(v);}
+    uint8_t getSwHyst(){return si7210.getSwHyst();}
+    static Si7210::MagField_t getMaxAmplitude(){return Si7210::getMaxAmplitude();}
+
+    uint16_t Setup();
+    Si7210::MagField_t PollOutput();
+    void SetupSwOp(uint8_t swop);
+    void FinishSetup();
+    bool loop(unsigned long, bool &rainActivated, Si7210::MagField_t&magField);
+
+    void dump(){ si7210.dump();}
+    protected:
+    void DoReadMode(unsigned long, Si7210::MagField_t);
+    bool CheckThresholds(unsigned long now,Si7210::MagField_t);
+   Si7210 si7210;
+};
+
+class Ah1383 {
+    // The AH1383 is a hall effect uni-polar switch that is either ON or OFF
+    // and is read on the ROCKER_INPUT_PIN
+    public:
+    int16_t toggleOutputSense();
+    bool loop(unsigned long, bool &rainActivated, Si7210::MagField_t&magField);
+
+    void Setup(){};
+    void SetupSwOp(uint8_t swop){}
+    void SetupSwHyst(uint8_t hyst){}
+    uint16_t setSwOp(uint8_t v){return 0;}
+    uint16_t setSwHyst(uint8_t v){return 0;}
+    void FinishSetup(){}
+    void resetToOTP(){}
+    void wakeup(){}
+    void one(){}
+    uint8_t sleep(bool=false){return 0;}
+    protected:
+    void DoReadMode(unsigned long, Si7210::MagField_t);
+};
+
+#if defined(USE_AH1383)
+typedef Ah1383 Sensor_t;
+#elif defined(USE_S7210)
+typedef Pcb3Si7210 Sensor_t;
 #endif
 
 namespace {
@@ -74,18 +145,24 @@ namespace {
     const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
     const int TXD_PIN = 1;
     const int RC_RLY_INTERRUPT_PIN = 3;
-    const int RC_STATUS_PIN = 16;   // not used, but on REV02 of the PCB
+ #if PCB_REV_NUMBER >= 3
+    const int RC_STATUS_PIN = 17;   // not used, but on REV02 of the PCB
+    const int ROCKER_INPUT_PIN = 16;
+#elif PCB_REV_NUMBER <= 2   // these pin assignments are reversed on REV02 vs REV03
+    const int RC_STATUS_PIN = 16;
     const int ROCKER_INPUT_PIN = 17;
+#endif
+   const int SENSOR_INTERRUPT_INVERT_PIN = 7;
 
     /* The Pro Mini has two interrupt pins that have the right features
     ** for responding to the three sources in this design, INT0 and INT1:
     ** 1. the RFM69
     ** 2. the R1/C1 sleep timer
-    ** 3. the Si7210 AL pin that indicates the approach or departure of a magnet
+    ** 3. the hall effect sensor AL pin that indicates the approach or departure of a magnet
     **
     ** The RFM69 is on INT0
-    ** The RC circuit and the Si7210 share INT1 through the 74HCS27 configured as an AND gate.
-    ** Both are also routed to dedicated pins on the Arduino, D8 and D17, respectively,
+    ** The RC circuit and the hall effect share INT1 through the single gate logic at U10, U11, U12
+    ** Both are also routed to dedicated input pins on the Arduino, D8 and D16, respectively,
     ** so the sketch can tell which was the cause.
     */
 
@@ -180,7 +257,7 @@ namespace {
 
     TMP175 tmp175(0b1001000); //0b1001000 per TMP175 docs, is I2C address with all addressing pins low.
 
-    Si7210 si7210(0x33);
+    Sensor_t magSensor;
     bool prevSentMagnetClose;
     const int MAX_WAIT_FOR_TOGGLE_MSEC = 100;
     const long SERIAL_PORT_BAUDS = 38400;
@@ -210,12 +287,17 @@ namespace {
 
 void setup()
 {
-#if defined(USE_SERIAL)
     // Open a serial port so we can send keystrokes to the module:
     enableSerial = true;
     Serial.begin(SERIAL_PORT_BAUDS);
     delay(100);
-    Serial.println("Packet Rain Gauge " REVISION);
+    Serial.print("Packet Rain Gauge " REVISION " for PCB V");
+    Serial.println(static_cast<int>(PCB_REV_NUMBER));
+    #if defined(USE_AH1383)
+    Serial.println(F("AH1383 sensor"));
+    #elif defined(USE_S7210)
+    Serial.println(F("Si7210 sensor"));
+    #endif
     Serial.print("Node ");
     Serial.print(radioConfiguration.NodeId(), DEC);
     Serial.print(" on network ");
@@ -225,7 +307,6 @@ void setup()
     Serial.print(" key ");
     radioConfiguration.printEncryptionKey(Serial);
     Serial.println(" ready");
-#endif
 
 #if defined(USE_RFM69)
     pinMode(RFM69_CHIP_SELECT_PIN, OUTPUT);
@@ -240,7 +321,6 @@ void setup()
             networkId != 0xff &&
             fbId != 0xff &&
             radio.initialize(fbId, nodeId, networkId);
-#if defined(USE_SERIAL)
     Serial.println(radioOK ? "Radio init OK" : "Radio init failed");
     if (radioOK)
     {
@@ -249,8 +329,7 @@ void setup()
             radio.setFrequency(1000*freq);
         Serial.print("Freq= "); Serial.print(radio.getFrequency()/1000); Serial.println(" KHz");
     }
-#endif   
-
+ 
     if (radioOK)
     {
         radio.setHighPower(); // Always use this for RFM69HCW
@@ -258,11 +337,12 @@ void setup()
         if (radioConfiguration.encrypted() && ENCRYPT)
             radio.encrypt(radioConfiguration.EncryptionKey());
     }
-
 #endif
 
     pinMode(RC_RLY_INTERRUPT_PIN, INPUT);
     pinMode(ROCKER_INPUT_PIN, INPUT);
+    pinMode(SENSOR_INTERRUPT_INVERT_PIN, OUTPUT);
+    digitalWrite(SENSOR_INTERRUPT_INVERT_PIN, LOW); // Sensor set not inverted
 
 #if defined(TELEMETER_BATTERY_V)
     ResetAnalogReference();
@@ -275,66 +355,24 @@ void setup()
     if (eepromLoopCount && eepromLoopCount <= MAX_SLEEP_LOOP_COUNT)
     	SleepLoopTimerCount = eepromLoopCount;
 
-#if defined(USE_SERIAL)
     Serial.print("SleepLoopTimerCount = ");
     Serial.println(SleepLoopTimerCount);
-#endif
 
     Wire.begin();
     tmp175.setup();
-    auto OTPthreshold = si7210.setup();
-
-    Serial.print("si7210 OTP threshold=");
-    Serial.println(OTPthreshold);
+    magSensor.Setup();
 
     auto swop = getRaingaugeSwop();
-    uint16_t threshold;
     if (swop != 0xffu)
-    {
-        threshold = si7210.setSwOp(swop);
-        Serial.print(F("SWOP EEPROM raw =0x")); 
-        Serial.print((int)swop, HEX);
-        Serial.print(" threshold=");
-        Serial.println(threshold);
-    }
-
+        magSensor.SetupSwOp(swop);
+ 
     auto hyst = getRaingaugeSwHyst();
-    uint16_t hysteresis;
-    if (hyst != 0xffu)
-    {
-        hysteresis = si7210.setSwHyst(hyst);
-        Serial.print(F("SWHYST EEPROM raw=0x"));
-        Serial.print((int) hyst, HEX);
-        Serial.print(" hysteresis = ");
-    }
-    else
-    {
-        Serial.print("OTP hysteresis = ");
-        hysteresis = si7210.hysteresis(si7210.getSwHyst());
-    }
-    Serial.println(hysteresis);
-
-    /* This sketch allows setting the si7210 parameters arbitrarily....
-    ** but here are some hints for setting it up.
-    ** The 3D prints arrange for the sensor to be very close to magnet when one
-    ** side of the bucket is down. That gives a maximum, or near maximum, reading to the sensor
-    ** The other buckets gives some lower reading, depending on how far away the 3D print can make the
-    ** magnet travel.
-    ** So...set the "Swop" (which is actually the threshold) to a large number. 0x7E is the largest. 
-    ** That means that the magnet needs to be near enough to get that large reading.
-    ** Set the hysteresis LOW (a nice low number is 0). That will give an interrupt very close to the
-    ** the threshold value. That is, an interrupt as the bucket brings the magnet close, and then again
-    ** as the bucket starts to move away.
-    */
-    int tamper = si7210.getSwTamper();
-    Serial.print("si7210 tamper= ");
-    Serial.println(tamper);
-
-    si7210.setFieldPolSel(0);
-    si7210.one();
+    magSensor.SetupSwHyst(hyst);
+    magSensor.FinishSetup();
+ 
     if (prevSentMagnetClose = (digitalRead(ROCKER_INPUT_PIN) == LOW))
     {
-        si7210.toggleOutputSense();
+        magSensor.toggleOutputSense();
         Serial.println("Magnet close on startup.");
         delay(MAX_WAIT_FOR_TOGGLE_MSEC);
     }
@@ -363,8 +401,7 @@ void setup()
 /* Power management:
  * For ListenAfterTransmitMsec we stay awake and listen on the radio and Serial.
  * Then we power down all: temperature sensor, radio and CPU and CPU
- * sleep using SleepTilNextInterrupt.
- */
+ * sleep using SleepTilNextInterrupt. */
 
 namespace {
     unsigned SleepTilNextInterrupt();
@@ -411,9 +448,7 @@ namespace {
             }
         }else if (strncmp(pCmd, VER, sizeof(VER) - 1) == 0)
         {
-#if defined(USE_SERIAL)
             Serial.println("Revision 03");
-#endif
             return true;
         }else if (q = strstr(pCmd, SET_SERIAL))
         {
@@ -435,7 +470,7 @@ namespace {
             if (enableSerial)
             {
                 Serial.print("Set threshold=");
-                Serial.println(si7210.setSwOp(v));
+                Serial.println(magSensor.setSwOp(v));
             }
             return true;
         }else if (q = strstr(pCmd, SET_HYSTERESIS))
@@ -446,7 +481,7 @@ namespace {
             if (enableSerial)
             {
                 Serial.print("Set hyteresis=");
-                Serial.println(si7210.setSwHyst(v));
+                Serial.println(magSensor.setSwHyst(v));
             }
             return true;
         }else if (q = strstr(pCmd, SET_NEAR_THRESHOLD))
@@ -471,8 +506,8 @@ namespace {
         {
             setRaingaugeSwHyst(0xff);
             setRaingaugeSwop(0xff);
-            si7210.resetToOTP();
-            si7210.wakeup(); // resetToOTP set sleep()
+            magSensor.resetToOTP();
+            magSensor.wakeup(); // resetToOTP set sleep()
             return true;
         }else if (q = strstr(pCmd, DUMP_RFM69))
         {
@@ -491,6 +526,7 @@ namespace {
         }
         return false;
     }
+    bool MonitorRockerInput(unsigned long);
 }
 
 void loop()
@@ -507,7 +543,7 @@ void loop()
     {
         // Print out the information:
         TimeOfWakeup = now; // extend sleep timer
-#if defined(USE_SERIAL)
+
         if (enableSerial)
         {
             Serial.print("received from node ");
@@ -526,28 +562,23 @@ void loop()
             Serial.print("], RSSI ");
             Serial.println(radio.RSSI);
         }
-#endif
+
         // RFM69 ensures trailing zero byte, unless buffer is full...so
         radio.DATA[sizeof(radio.DATA) - 1] = 0; // ...if buffer is full, ignore last byte
         if (processCommand((const char*)&radio.DATA[0]))
         {
-#if defined(USE_SERIAL)
             if (enableSerial)
                 Serial.println("Received command accepted");
-#endif
         }
         if (radio.ACKRequested())
         {
             radio.sendACK();
-#if defined(USE_SERIAL)
             if (enableSerial)
                 Serial.println("ACK sent");
-#endif
         }
     }
 #endif
 	
-#if defined(USE_SERIAL)
     // Set up a "buffer" for characters that we'll send:
     static char sendbuffer[62];
     static int sendlength = 0;
@@ -569,7 +600,6 @@ void loop()
         }
 
         // If the input is a carriage return, or the buffer is full:
-
         if ((input == '\r') || (sendlength == sizeof(sendbuffer) - 1)) // CR or buffer full
         {
             sendbuffer[sendlength] = 0;
@@ -594,9 +624,274 @@ void loop()
             sendlength = 0; // reset the packet
         }
     }
+   
+    bool rainActivated = MonitorRockerInput(now);
+    
+    Si7210::MagField_t magField = 0;
+    if (magSensor.loop(now, rainActivated, magField))
+        return; // not ready. loop() again
+
+    if (rainActivated ||
+        (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
+    { 
+        TransmittedSinceSleep = true; /* Transmit at least once per wakeup. */
+        int batt(0);
+#if defined(TELEMETER_BATTERY_V)
+        // 10K to VCC and (wired on board) 2.7K to ground
+        pinMode(BATTERY_PIN, INPUT_PULLUP); // sample the battery
+        batt = analogRead(BATTERY_PIN);
+        /* batt result means little in absolute terms, but its
+        ** history is telling. Failing cells have a pattern.*/
+        pinMode(BATTERY_PIN, INPUT); // turn off battery drain
+#endif
+        // read temperature data
+        auto temperature = tmp175.finishReadTempCx16();
+
+        char sign = '+';
+        if (temperature < 0) {
+            temperature = -temperature;
+            sign = '-';
+        }
+        else if (temperature == 0.f)
+            sign = ' ';
+
+        int whole = temperature >> 4;
+        int frac = temperature & 0xF;
+        frac *= 100;
+        frac >>= 4;
+
+        static char buf[64];
+        sprintf(buf, "C:%u, B:%d, T:%c%d.%02d, RG: %d F: %d",
+            sampleCount++,
+            batt,
+            sign, whole,
+            frac,
+            static_cast<int>(rainActivated ? 1 : 0),
+            static_cast<int>(magField)
+        );
+        if (enableSerial)
+            Serial.println(buf);
+#if defined(USE_RFM69) 
+        if (radioOK)
+            radio.sendWithRetry(GATEWAY_NODEID, buf, strlen(buf));
+#endif
+    }
+
+    if (now - TimeOfWakeup > ListenAfterTransmitMsec)
+    {	// go to sleep. with R1/C1 as specified will be about 100 seconds
+        TransmittedSinceSleep = false;
+        if (getOnloopSerialDisable())
+            SetSerialEnabled(false);
+        SleepTilNextInterrupt();
+        TimeOfWakeup = millis();
+        ListenAfterTransmitMsec = NormalListenAfterTransmit;
+    }
+}
+
+void sleepPinInterrupt()	// requires 10uF and 10M between two pins
+{
+    // run at interrupt level. disables further interrupt from this source
+    detachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN));
+}
+
+namespace {
+    unsigned SleepTilNextInterrupt()
+    {
+        if (enableSerial)
+        {
+            Serial.print("sleep for count=");
+            Serial.println(SleepLoopTimerCount);
+            Serial.flush();// wait for finish and turn off pins before sleep
+            Serial.end();
+        }
+        // regardless of whether the Serial is going to be re-enabled, hold TX steady
+        // so if a port is attached, the PC doesn't get (as much) garbage.
+        pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
+        digitalWrite(TXD_PIN, HIGH);
+        pinMode(TXD_PIN, OUTPUT); // TXD hold steady
+
+#if defined(USE_RFM69)
+        if (radioOK)
+            radio.sleep();
 #endif
 
-    /* Using the si7210 manufacturer defaults for threshold and hysteresis 
+#if defined(TELEMETER_BATTERY_V)
+        auto saveADCSRA = ADCSRA;
+        ADCSRA = 0; // Turn off ADC
+#endif
+
+        magSensor.sleep(false);
+
+        // sleep mode power supply current measurements indicate this appears to be redundant
+        power_all_disable(); // turn off everything
+
+        unsigned count = 0;
+
+        // this uses R1 and C1 to ground
+        while (count < SleepLoopTimerCount)
+        {
+            #if EXPERIMENTAL_AH1383_ON_PCBV2==0
+            if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+                break;
+            power_timer0_enable(); // delay() requires this
+            pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
+            digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
+            delay(10); // Charge the 1uF
+            pinMode(TIMER_RC_CHARGE_PIN, INPUT);
+            cli();
+            power_timer0_disable(); // timer0 powered down again
+            attachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN), sleepPinInterrupt, LOW);         
+            
+            #else  /*Testing an AH1383 on the older PCB
+            ** The RC based transmit events only happen with the bucket magnet AWAY.
+            ** While the magnet is close, we sleep waiting for the interrupt on HIGH level, */
+            bool hallEffectActive = digitalRead(ROCKER_INPUT_PIN) == LOW;
+            power_timer0_enable(); // delay() requires this
+            pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
+            digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
+            delay(10); // Charge the 1uF
+            if (!hallEffectActive) // Disable the RC timer while hall effect active
+                pinMode(TIMER_RC_CHARGE_PIN, INPUT);
+            cli();
+            power_timer0_disable(); // timer0 powered down again
+            attachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN), sleepPinInterrupt, hallEffectActive? HIGH: LOW);
+            #endif
+
+            set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+            sleep_enable();
+            sleep_bod_disable();
+            sei();
+            sleep_cpu(); 
+            sleep_disable();
+            sei();
+            count += 1;
+        }
+
+        power_all_enable();
+
+#if defined(TELEMETER_BATTERY_V)
+        ADCSRA = saveADCSRA;
+        ResetAnalogReference();
+#endif
+
+        if (enableSerial)
+        {
+            Serial.begin(SERIAL_PORT_BAUDS);
+            Serial.println(F("******waked up*******"));
+        }
+
+#if defined(FLASH_LED_ON_WAKEUP)
+        pinMode(LED_BUILTIN, OUTPUT);
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(20);
+        pinMode(LED_BUILTIN, INPUT);
+#endif
+
+        tmp175.startReadTemperature();
+        magSensor.wakeup();
+        magSensor.one(); // Output pin check won't be updated in loop() without this
+        return count;
+    }
+
+#if defined(TELEMETER_BATTERY_V)
+	void ResetAnalogReference()
+	{
+		analogReference(INTERNAL);
+		pinMode(BATTERY_PIN, INPUT);
+		analogRead(BATTERY_PIN);
+		delay(10); // let ADC settle
+	}
+#endif
+}
+
+// Pcb3Si7210 methods********************************************************************
+    uint16_t Pcb3Si7210::Setup() 
+    {
+        auto OTPthreshold = si7210.setup();
+        Serial.print("si7210 OTP threshold=");
+        Serial.println(OTPthreshold);
+        return OTPthreshold;
+    }
+    void Pcb3Si7210::FinishSetup()
+    {
+        /* This sketch allows setting the si7210 parameters arbitrarily....
+        ** but here are some hints for setting it up.
+        ** The 3D prints arrange for the sensor to be very close to magnet when one
+        ** side of the bucket is down. That gives a maximum, or near maximum, reading to the sensor
+        ** The other buckets gives some lower reading, depending on how far away the 3D print can make the
+        ** magnet travel.
+        ** So...set the "Swop" (which is actually the threshold) to a large number. 0x7E is the largest. 
+        ** That means that the magnet needs to be near enough to get that large reading.
+        ** Set the hysteresis LOW (a nice low number is 0). That will give an interrupt very close to the
+        ** the threshold value. That is, an interrupt as the bucket brings the magnet close, and then again
+        ** as the bucket starts to move away.
+        */
+        int tamper = si7210.getSwTamper();
+        Serial.print("si7210 tamper= ");
+        Serial.println(tamper);
+        si7210.setFieldPolSel(0);
+        si7210.one();
+    }
+
+    void Pcb3Si7210::SetupSwOp(uint8_t swop)
+    {
+        uint16_t threshold = si7210.setSwOp(swop);
+        Serial.print(F("SWOP EEPROM raw =0x")); 
+        Serial.print((int)swop, HEX);
+        Serial.print(" threshold=");
+        Serial.println(threshold);
+    }
+
+    void Pcb3Si7210::SetupSwHyst(uint8_t hyst)
+    {
+        uint16_t hysteresis;
+        if (hyst != 0xffu)
+        {
+            hysteresis = si7210.setSwHyst(hyst);
+            Serial.print(F("SWHYST EEPROM raw=0x"));
+            Serial.print((int) hyst, HEX);
+            Serial.print(" hysteresis = ");
+        }
+        else
+        {
+            Serial.print("OTP hysteresis = ");
+            hysteresis = si7210.hysteresis(si7210.getSwHyst());
+        }
+        Serial.println(hysteresis);
+    }
+
+    Si7210::MagField_t Pcb3Si7210::PollOutput()
+    {
+        si7210.one();
+        delayMicroseconds(Si7210::CONVERSION_TIME_MICROSECONDS);
+        Si7210::MagField_t magField;  
+        for (int i = 0;;)
+        {
+            magField = si7210.readMagField();
+            if (magField != Si7210::INVALID_FIELD_READING)
+                break;
+            if (++i >= MAX_MAGFIELD_POLL)
+                break; // do loop() again
+        }
+        return magField;
+   }
+
+void Pcb3Si7210::DoReadMode(unsigned long now, Si7210::MagField_t magField)
+{
+    if (now > ReadModeStop)
+        readMode = false;
+    else
+    {
+        if (enableSerial)
+        {
+            Serial.print(F("Magfield: "));
+            Serial.println(magField);
+        }
+    }
+}
+
+bool Pcb3Si7210::CheckThresholds(unsigned long now, Si7210::MagField_t magField)
+{   /* Using the si7210 manufacturer defaults for threshold and hysteresis 
     ** controlling its output pin, experiments in the raingauge assembly gave 
     ** some false positive output toggles when the rocker toggles.
     ** This sketch, to avoid those false positive counts, does not necessarily 
@@ -610,59 +905,8 @@ void loop()
     ** a few hundred milliseconds, the reading either exceedes NearThreshold (below),
     ** or is below FarThreshold. It withholds notification even when 
     ** the device interrupts, if the reading is between those, or has not switched 
-    ** from one extreme to the other.
-    */
+    ** from one extreme to the other.  */
 
-    bool rainActivated = false;
-     // if magnetic sensor interrupt is active, switch it to its other sense
-    if (digitalRead(ROCKER_INPUT_PIN) == LOW)
-    { /* I only have one job under this funnel, and I'm going to do it.*/
-        auto os = si7210.toggleOutputSense();
-        #if 0//defined(USE_SERIAL)
-        Serial.print("toggleOutputSense: 0x");
-        Serial.println(static_cast<int>(os), HEX);
-        #endif
-        for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
-        {
-            delay(1); // give ROCKER_INPUT_PIN time to respond
-            if (digitalRead(ROCKER_INPUT_PIN) != LOW)
-            {
-                rainActivated = true; // note: this is overridden below if the Far/Near logic is compiled
-                break; // normally this happens with j == 0
-            }
-        }
-        TimeOfWakeup = now; // extend sleep timer
-    }
-
-    si7210.one();
-    delayMicroseconds(si7210.CONVERSION_TIME_MICROSECONDS);
-    Si7210::MagField_t magField;  
-    for (int i = 0;;)
-    {
-        magField = si7210.readMagField();
-        if (magField != Si7210::INVALID_FIELD_READING)
-            break;
-        if (++i >= MAX_MAGFIELD_POLL)
-            return; // do loop() again
-    }
-
-    if (readMode)
-    {
-        if (now > ReadModeStop)
-             readMode = false;
-        else
-        {
-            #if defined(USE_SERIAL)
-            if (enableSerial)
-            {
-                Serial.print(F("Magfield: "));
-                Serial.println(magField);
-            }
-            #endif
-        }
-    }
-
-#if 1 // compute rainActivated using the magnetic field amplitude rather than the si7210 output pin
     bool MagIsClose(false);
     bool MagIsFar(false);
     switch (SignedThreshold)
@@ -683,8 +927,9 @@ void loop()
             MagIsFar = amplitude < FarThreshold;
         break;
     }
-      
-    rainActivated = !(!MagIsClose && !MagIsFar); // only report farther than FAR_THRESHOLD or nearer than NEAR_THRESHOLD
+
+    // compute rainActivated using the magnetic field amplitude rather than the si7210 output pin 
+    bool rainActivated = !(!MagIsClose && !MagIsFar); // only report farther than FAR_THRESHOLD or nearer than NEAR_THRESHOLD
     static const int MAX_MAG_SAVED_BETWEEN = 1 << 2;  // Must be a power of 2 for opimized modular arithmetic
     static uint8_t newestMagIndex = 0;
     static uint8_t oldestMagIndex = 0; // no entries when newest/oldest match
@@ -742,182 +987,87 @@ not_rainActivated:
 
     if (rainActivated)
         prevSentMagnetClose = MagIsClose;
-#endif
-
-
-    if (rainActivated ||
-        (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
-    { 
-        TransmittedSinceSleep = true; /* Transmit at least once per wakeup. */
-        int batt(0);
-#if defined(TELEMETER_BATTERY_V)
-        // 10K to VCC and (wired on board) 2.7K to ground
-        pinMode(BATTERY_PIN, INPUT_PULLUP); // sample the battery
-        batt = analogRead(BATTERY_PIN);
-        /* batt result means little in absolute terms, but its
-        ** history is telling. Failing cells have a pattern.*/
-        pinMode(BATTERY_PIN, INPUT); // turn off battery drain
-#endif
-        // read temperature data
-        auto temperature = tmp175.finishReadTempCx16();
-
-        char sign = '+';
-        if (temperature < 0) {
-            temperature = -temperature;
-            sign = '-';
-        }
-        else if (temperature == 0.f)
-            sign = ' ';
-
-        int whole = temperature >> 4;
-        int frac = temperature & 0xF;
-        frac *= 100;
-        frac >>= 4;
-
-        static char buf[64];
-        sprintf(buf, "C:%u, B:%d, T:%c%d.%02d, RG: %d F: %d",
-            sampleCount++,
-            batt,
-            sign, whole,
-            frac,
-            static_cast<int>(rainActivated ? 1 : 0),
-            static_cast<int>(magField)
-        );
-#if defined(USE_SERIAL)
-        if (enableSerial)
-            Serial.println(buf);
-#endif
-#if defined(USE_RFM69) 
-        if (radioOK)
-            radio.sendWithRetry(GATEWAY_NODEID, buf, strlen(buf));
-#endif
-    }
-
-    if (now - TimeOfWakeup > ListenAfterTransmitMsec)
-    {	// go to sleep. with R1/C1 as specified will be about 100 seconds
-        TransmittedSinceSleep = false;
-        if (getOnloopSerialDisable())
-            SetSerialEnabled(false);
-        SleepTilNextInterrupt();
-        TimeOfWakeup = millis();
-        ListenAfterTransmitMsec = NormalListenAfterTransmit;
-    }
-
-    #if 0
-    #if defined(USE_SERIAL)
-    {
-        auto pinInt = digitalRead(RC_RLY_INTERRUPT_PIN);
-        auto pinSi7210 = digitalRead(ROCKER_INPUT_PIN);
-        Serial.print("pinInt = ");
-        Serial.print(pinInt);
-        Serial.print(", pin7210=");
-        Serial.println(pinSi7210);
-    }
-    #endif
-    #endif
+    return rainActivated;
 }
 
-void sleepPinInterrupt()	// requires 10uF and 10M between two pins
+bool Pcb3Si7210::loop(unsigned long now, bool &rainActivated, Si7210::MagField_t&magField)
 {
-    // run at interrupt level. disables further interrupt from this source
-    detachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN));
+    magField = PollOutput();
+    if (magField == Si7210::INVALID_FIELD_READING)
+        return true; // do loop() again
+
+    if (readMode)
+        DoReadMode(now, magField);
+
+    rainActivated = CheckThresholds(now, magField);
+    return false;
+}
+
+// Ah1383 methods ***********************************************************
+int16_t Ah1383::toggleOutputSense()
+{
+    auto v = digitalRead(SENSOR_INTERRUPT_INVERT_PIN);
+    v = (v == HIGH) ? LOW : HIGH;
+    digitalWrite(SENSOR_INTERRUPT_INVERT_PIN, v);
+    return v;
+}
+
+void Ah1383::DoReadMode(unsigned long now, Si7210::MagField_t magField)
+{
+    if (now > ReadModeStop)
+        readMode = false;
+    else
+    {
+        if (enableSerial)
+        {
+            static auto prevMagfield = -magField;
+            if (magField != prevMagfield)
+            {
+                Serial.print(F("Magfield: "));
+                Serial.println(magField);
+                prevMagfield = magField;
+            }
+        }
+    }
+}
+
+bool Ah1383::loop(unsigned long now, bool &, Si7210::MagField_t&magField)
+{
+    readMode = false;
+    auto v = digitalRead(ROCKER_INPUT_PIN);
+    if (v)
+        magField = -1;
+    else
+        magField = 1;
+    if (readMode)
+        DoReadMode(now, magField);
+    return false;
 }
 
 namespace {
-    unsigned SleepTilNextInterrupt()
-    {
-
-#if defined(USE_SERIAL)
-        if (enableSerial)
-        {
-            Serial.print("sleep for count=");
-            Serial.println(SleepLoopTimerCount);
-            Serial.flush();// wait for finish and turn off pins before sleep
-            Serial.end();
-        }
-        // regardless of whether the Serial is going to be re-enabled, hold TX steady
-        // so if a port is attached, the PC doesn't get (as much) garbage.
-        pinMode(0, INPUT); // Arduino libraries have a symbolic definition for Serial pins?
-        digitalWrite(TXD_PIN, HIGH);
-        pinMode(TXD_PIN, OUTPUT); // TXD hold steady
-#endif
-
-#if defined(USE_RFM69)
-        if (radioOK)
-            radio.sleep();
-#endif
-
-#if defined(TELEMETER_BATTERY_V)
-        auto saveADCSRA = ADCSRA;
-        ADCSRA = 0; // Turn off ADC
-#endif
-
-        si7210.sleep(false);
-
-        // sleep mode power supply current measurements indicate this appears to be redundant
-        power_all_disable(); // turn off everything
-
-        unsigned count = 0;
-
-        // this uses R1 and C1 to ground
-        while (count < SleepLoopTimerCount)
-        {
-            if (digitalRead(ROCKER_INPUT_PIN) == LOW)
-                break;
-            power_timer0_enable(); // delay() requires this
-            pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
-            digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
-            delay(10); // Charge the 1uF
-            pinMode(TIMER_RC_CHARGE_PIN, INPUT);
-            cli();
-            power_timer0_disable(); // timer0 powered down again
-            attachInterrupt(digitalPinToInterrupt(RC_RLY_INTERRUPT_PIN), sleepPinInterrupt, LOW);
-            set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-            sleep_enable();
-            sleep_bod_disable();
-            sei();
-            sleep_cpu(); 
-            sleep_disable();
-            sei();
-            count += 1;
-        }
-
-
-        power_all_enable();
-
-#if defined(TELEMETER_BATTERY_V)
-        ADCSRA = saveADCSRA;
-        ResetAnalogReference();
-#endif
-
-#if defined(USE_SERIAL)
-        if (enableSerial)
-        {
-            Serial.begin(SERIAL_PORT_BAUDS);
-            Serial.println(F("******waked up*******"));
-        }
-#endif
-
-#if defined(FLASH_LED_ON_WAKEUP)
-        pinMode(LED_BUILTIN, OUTPUT);
-        digitalWrite(LED_BUILTIN, HIGH);
-        delay(20);
-        pinMode(LED_BUILTIN, INPUT);
-#endif
-
-        tmp175.startReadTemperature();
-        si7210.wakeup();
-        si7210.one(); // Output pin check won't be updated in loop() without this
-        return count;
+#if EXPERIMENTAL_AH1383_ON_PCBV2==0
+    bool MonitorRockerInput(unsigned long now)
+    {   // if magnetic sensor interrupt is active, switch it to its other sense
+        if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+        { /* I only have one job under this funnel, and I'm going to do it.*/
+            auto os = magSensor.toggleOutputSense();
+            for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
+            {
+                delay(1); // give ROCKER_INPUT_PIN time to respond
+                if (digitalRead(ROCKER_INPUT_PIN) != LOW)
+                     return true; // normally this happens with j == 0
+            }
+            TimeOfWakeup = now; // extend sleep timer
+        }  
+        return false;
     }
-
-#if defined(TELEMETER_BATTERY_V)
-	void ResetAnalogReference()
-	{
-		analogReference(INTERNAL);
-		pinMode(BATTERY_PIN, INPUT);
-		analogRead(BATTERY_PIN);
-		delay(10); // let ADC settle
-	}
+#else
+    bool MonitorRockerInput(unsigned long now)
+    {   // The AH1383 on the old board. 
+        bool AH1383Active = digitalRead(ROCKER_INPUT_PIN) == LOW;
+        bool ret = AH1383Active == prevSentMagnetClose;
+        prevSentMagnetClose = AH1383Active;
+        return ret;
+    }
 #endif
 }

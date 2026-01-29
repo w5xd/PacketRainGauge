@@ -146,7 +146,7 @@ in this project:
 <li>Jumper SJ1 (top side, close to the GND pad) must be desoldered to remove the red power LED's power drain.
 <li>The bottom side i2c pullup positions, R1 and R3, can each have a 4.7K 
 resistor installed. Two SMD 0603 size resistors just fit inside a hole
-in the PCB designed to clear them. Alternatively, REV02 of the PCB has positions for SMD
+in the PCB designed to clear them. Alternatively, REV03 of the PCB has positions for SMD
 0804  pull up resistors that are not quite so tiny.
 <li>The 330 ohm resistor just inside pins D11 and D12 can be removed (or cut with a diagonal 
 cutter.) This
@@ -154,13 +154,16 @@ disables the green LED to prevent its battery drain and load on the SCK line. Th
 almost never turned on by the sketch, so removing it saves very little.
 </ul>
 
-PCB Parts
+PCB Parts for PCB version 3 and later
 <ul>
 <li>Sparkfun Arduino <a href='https://www.sparkfun.com/arduino-pro-mini-328-3-3v-8mhz.html'>Pro Mini</a> in 3.3V
 <li>Sparkfun <a href='https://www.sparkfun.com/rfm69hcw-wireless-transceiver-915mhz.html'>
 RFM69HCW</a></li>
-<li><a href='https://www.silabs.com/documents/public/data-sheets/si7210-datasheet.pdf'>Si7210-B-04-IVR</a> I2C Hall effect sensor in SOT-23-5 package</li>
-<li><a href='https://www.ti.com/lit/ds/symlink/sn74hcs27.pdf'>SN74HCS27DR</a> Triple 3-Input NOR Gates with Schmitt-Trigger Inputs in 14 SOIC package</li>
+<li><a href='https://www.silabs.com/documents/public/data-sheets/si7210-datasheet.pdf'>Si7210-B-04-IVR</a> I2C Hall effect sensor in SOT-23-5 package or...<br/>
+<a href='https://www.mouser.com/datasheet/3/175/1/AH1381_AH1382_AH1383.pdf'>Diodes Incorporated AH1383</a> in SOT-23-5</li>
+<li><a href='https://www.ti.com/lit/ds/symlink/sn74ahc1g86-q1.pdf'>SN74AHC1G86</a> Single 2 input XOR in SOT-23 package</li>
+<li><a href='https://www.ti.com/lit/ds/symlink/sn74ahc1g02.pdf'>SN74AHC1G02</a> Single 2 input NOR in SOT-23 package</li>
+<li><a href='https://www.ti.com/lit/ds/symlink/sn74ahc1g14.pdf'>SN74AHC1G14</a> Single Schmidt inverter SOT-23 package</li>
 <li><a href='https://www.ti.com/lit/ds/symlink/tmp175.pdf'></a>TMP175 temperature sensor in 8 SOIC package
 <li>10M resistor size SMD 1206
 <li>2.7K resistor size SMD 1206
@@ -169,7 +172,7 @@ RFM69HCW</a></li>
 <li>.1uF ceramic 16V in SMD1206
 </ul>
 
-Mouser <a href='https://www.mouser.com/Tools/Project/Share?AccessID=8fd74ac259'>Project</a> referencing all the above PCB parts.
+Mouser <a href='https://www.mouser.com/Tools/Project/Share?AccessID=1e16e65a5d'>Project</a> referencing all the above PCB parts.
 
 <h3>PCB considerations</h3>
 Mount the Arduino directly to the PCB without headers. 
@@ -201,7 +204,6 @@ I flipped the board over
 and used the oven again to bake the top side SMD parts. While the ExpressPCB process provides
 a solder paste mask in its gerber files, I found it easier just to use a very small stick of some sort
 (a 0.050" allen key, for example) to dab tiny bits of paste on the solder pads.
-
 The RFM69 is documented to be
 oven-safe, but I have destroyed at least one (maybe not because of the oven?) and its
 easy enough to hand solder its 100 thou wide solder pads.
@@ -289,8 +291,7 @@ with the width. The 12BH222 is comparatively narrow, and
 just fits inside the AA holder 3D printed part.
 <li>Quantity two by AA cells. Lithium cells are preferred. They should last over 12 months.
 <li> A <a href='https://www.kjmagnetics.com/proddetail.asp?prod=B422'>K&J Magnetics B422 neodymium magnet</a>.
-The same part as the retrofit, above. Its
-Note there is a required orientation of the magnet that takes some care when
+The same part as the retrofit, above. Note there is a required orientation of the magnet that takes some care when
 you glue it. See <a href='#MAGNET_ORIENTATION'>below</a>.
 <li> <a href='https://www.mcmaster.com/catalog/131/4021/2418T16'>3/32" width, Dash Number 141 O Ring (2 1/2" OD)</a>
 The O ring seals the battery compartment against water.
@@ -310,38 +311,45 @@ But that geometry makes
 four 1/8" sides to the magnet that might face the sensor and only two of them work!
 (Well, it will probably work with the "wrong" orientation anyway because the hall effect sensor is very
 good at detecting near versus far if any field lines cross it at all, and they do in this funnel.)
-The magnet has two opposing 1/8" faces 
-that are optimum to face
-the sensor
- (the ones with the poles) and the other two 1/8" faces are far less effective to sense! Another
+The magnet has two opposing 1/8" faces that are optimum to face the sensor
+(the ones with the poles) and the other two 1/8" faces are far less effective to sense! Another
 magnet with known poles helps figure out which face is right: the face that sticks to 
 the other magnet IS one of the poles. Here
 are some more hints: <a href='https://www.kjmagnetics.com/products.asp?cat=163'>
-https://www.kjmagnetics.com/products.asp?cat=163</a>.  The B422 may be mounted with either
+https://www.kjmagnetics.com/products.asp?cat=163</a>.  With the Si7210 sensor, the B422 may be mounted with either
 its North pole or South pole facing the PCB. (The North pole orientation will permanently give positive
-close-in
-readings in the magnetic sensor, the other will give negative.) You can also use the assembled
+close-in readings in the magnetic sensor, the other will give negative.) For the AH1383, the South pole
+must face the PCB.
+
+You can also use the assembled
 PCB and sketch to read out the magnetic field with the magnet close. When oriented properly,
 it will read the maximum magnitude (either + or -, either pole axis works
 fine with the sketch) about 16000. Use the sketch's <code>ReadModeForSeconds</code> command to
 make the magnetic field print out continuously. Hold the magnet directly over the Si7210 and then
 slide it only 1/4" or so in all directions. If you have a pole directly facing the sensor (the 
-desired orientation) the sign will not change on the magnetic field. If you have and edge toward
+desired orientation) the sign will not change on the magnetic field. If you have an edge toward
 the sensor, the sign will change. (Why a sign change? if the N/S poles are sideways toward the
-sensor, moving it slightly will put the N and S alternately nearer to the sensor.)
+sensor, moving it slightly will put the N and S alternately nearer to the sensor.) 
 
 <h3>Si7210 end-of-support and the AH1383</h3>
 Silicon Labs has announced end of support for the Si7210. The Diodes Incorporated AH1383
-is supported here. AS OF THIS WRITING, THE AH1383 DESIGN HAS NOT BEEN BUILT NOR TESTED.
+is supported as a substitute. It solders onto the same pads as the Si7210, except
+the SDA/SCL lines for I2C are simply not connected.
+AS OF THIS WRITING, THE AH1383 DESIGN HAS NOT BEEN BUILT NOR TESTED.
 The AH1383 happens to fit on the same solder pads as the si7210, but has no I2C port.
 But it does have an active low output that indicates when the magnetic field applied
 exceeds its threshold. The magnet must be chosen to exceed that threshold as does
 the magnet specified above (or substitute the magnet and the AH1382 or AH1381 for 
-lower thresholds).
+lower thresholds).<br/><br/>
+The AH1383 only supports one magnet orientation: the South pole of the magnet must
+face the top of the AH1383. The sketch as built for the AH1383 has a <code>ReadModeForSeconds</code>
+like for the Si7410, but it only prints out 1 for the magnet South close and -1 for the magnet far away. It is 
+important that the field readout as +1 when the magnet is close.
 
 <h3>Sketch parameter setup</h3>
 This advice applies to both physical arrangements, the Oregon Scientific funnel retrofit, and 
-3D printable design presented here. 
+3D printable design presented here. But these sketch parameters only affect the Si7210 chip.
+They have no effect if the AH1383 is installed.
 <ul><li>Mount the magnet with either its N
 or S pole facing the sensor as described in the previous section.</li>
 <li>The recommended Si7210 interrupt threshold and hysteresis settings are a relatively
@@ -377,7 +385,6 @@ and then polls the magnetic field looking for it to go outside the range NearThr
 The original Oregon Scientific part, by my observation, sends an update every 1mm of rainfall. In the retrofit,
 I measured the device to send an update about every 1.2mm of rainfall. I attribute the difference
 to the extra weight of the B422 magnet compared to the original (as nothing else has changed.)
-
 The full outdoor unit, as <a href='https://www.thingiverse.com/thing:4725413'>documented by its original designer</a> 
 clicks every 0.15mm of rain. As of the latest update to this repository, a 1/4" hex weighting nut is added
 to the rocker to make the water volume more consistent, and to require more water to rock it. 

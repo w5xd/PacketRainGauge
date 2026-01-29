@@ -155,11 +155,10 @@ public:
             Wire.write(SWOP_REGISTER_ADDRESS);
             Wire.write(current);
             Wire.endTransmission();
-            return current;
         }
-   }
+   }    
 
-    uint8_t getSwTamper()
+   uint8_t getSwTamper()
     {
         uint8_t ret = 0xff;
         Wire.beginTransmission(SlaveAddress);
