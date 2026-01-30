@@ -59,9 +59,10 @@
 #if PCB_REV_NUMBER >= 3 || !defined(USE_AH1383)
 #define EXPERIMENTAL_AH1383_ON_PCBV2 0
 #else
-/* EXPERIMENTAL_AH1383_ON_PCBV2 is not a viable solution for permanent install because it telemeters 
+/* Special case for the newly supported AH1383 on the older, Version 2 PCB.
+** EXPERIMENTAL_AH1383_ON_PCBV2 is not a viable solution for permanent install because it telemeters 
 ** NOTHING while the bucket magnet is direcly over the sensor. But it works normally if the bucket 
-** stops rocking away from the magnet.*/
+** happens to come to rest at the stop far away from the magnet.*/
 #define EXPERIMENTAL_AH1383_ON_PCBV2 1 
 #endif
 
@@ -71,37 +72,37 @@ class Pcb3Si7210
  public:
     Pcb3Si7210() : si7210(0x33)
     {}
-    static uint16_t threshold(uint8_t sw_op) { return Si7210::threshold(sw_op);}
-    static uint16_t hysteresis(uint8_t sw_hyst){return Si7210::hysteresis(sw_hyst);}
     bool isSleeping() const { return si7210.isSleeping();}
     bool isInterrupting();
     void wakeup() {  si7210.wakeup();}
+    void one() {  si7210.one();}
     uint8_t sleep(bool fromOTP = true) { return si7210.sleep(fromOTP);}
     void resetToOTP() {  si7210.resetToOTP();}
-    void one() {  si7210.one();}
-    Si7210::MagField_t readMagField(){return si7210.readMagField();}
     int16_t toggleOutputSense(){return si7210.toggleOutputSense();}
+    uint16_t setSwHyst(uint8_t v){return si7210.setSwHyst(v);}
+    uint16_t setSwOp(uint8_t v){return si7210.setSwOp(v);}
+
+    void Setup();
+    Si7210::MagField_t PollOutput();
+    bool loop(unsigned long, bool &rainActivated, Si7210::MagField_t&magField);
+    void dump(){ si7210.dump();}
+protected:
+    static uint16_t threshold(uint8_t sw_op) { return Si7210::threshold(sw_op);}
+    static uint16_t hysteresis(uint8_t sw_hyst){return Si7210::hysteresis(sw_hyst);}
+    Si7210::MagField_t readMagField(){return si7210.readMagField();}
     void setOutputSense(bool v){si7210.setOutputSense(v);}
     uint8_t getSwTamper(){return si7210.getSwTamper();}
-    uint16_t setSwOp(uint8_t v){return si7210.setSwOp(v);}
-    uint8_t getSwOp(){return si7210.getSwOp();}
-    uint16_t setSwHyst(uint8_t v){return si7210.setSwHyst(v);}
+     uint8_t getSwOp(){return si7210.getSwOp();}
     void SetupSwHyst(uint8_t hyst);
     void setFieldPolSel(uint8_t v){return si7210.setFieldPolSel(v);}
     uint8_t getSwHyst(){return si7210.getSwHyst();}
     static Si7210::MagField_t getMaxAmplitude(){return Si7210::getMaxAmplitude();}
-
-    uint16_t Setup();
-    Si7210::MagField_t PollOutput();
-    void SetupSwOp(uint8_t swop);
     void FinishSetup();
-    bool loop(unsigned long, bool &rainActivated, Si7210::MagField_t&magField);
-
-    void dump(){ si7210.dump();}
-    protected:
+    void SetupSwOp(uint8_t swop);
     void DoReadMode(unsigned long, Si7210::MagField_t);
     bool CheckThresholds(unsigned long now,Si7210::MagField_t);
-   Si7210 si7210;
+    
+    Si7210 si7210;
 };
 
 class Ah1383 {
@@ -112,11 +113,8 @@ class Ah1383 {
     bool loop(unsigned long, bool &rainActivated, Si7210::MagField_t&magField);
     void Setup(){};
     bool isInterrupting();
-    void SetupSwOp(uint8_t swop){}
-    void SetupSwHyst(uint8_t hyst){}
     uint16_t setSwOp(uint8_t v){return 0;}
     uint16_t setSwHyst(uint8_t v){return 0;}
-    void FinishSetup(){}
     void resetToOTP(){}
     void wakeup(){}
     void one(){}
@@ -156,7 +154,7 @@ namespace {
 #endif
    const int SENSOR_INTERRUPT_INVERT_PIN = 7;
 
-    /* The Pro Mini has two interrupt pins that have the necessary features
+    /* The Pro Mini has only two interrupt pins that have the necessary features
     ** for responding to the three sources in this design, INT0 and INT1:
     ** 1. the RFM69
     ** 2. the R1/C1 sleep timer
@@ -247,6 +245,7 @@ namespace {
         EEPROM.put(addr, v);
         SignedThreshold = v;
      }
+
 
 #if defined(TELEMETER_BATTERY_V)
     void ResetAnalogReference();
@@ -362,14 +361,6 @@ void setup()
     Wire.begin();
     tmp175.setup();
     magSensor.Setup();
-
-    auto swop = getRaingaugeSwop();
-    if (swop != 0xffu)
-        magSensor.SetupSwOp(swop);
- 
-    auto hyst = getRaingaugeSwHyst();
-    magSensor.SetupSwHyst(hyst);
-    magSensor.FinishSetup();
  
     if (prevSentMagnetClose = (digitalRead(ROCKER_INPUT_PIN) == LOW))
     {
@@ -462,7 +453,9 @@ namespace {
             while (isspace(*q)) q += 1;
             setOnloopSerialDisable(*q == '1');
             return true;
-        }else if (q = strstr(pCmd, SET_THRESHOLD))
+        }
+#if defined(USE_S7210)
+        else if (q = strstr(pCmd, SET_THRESHOLD))
         {
             q += sizeof(SET_THRESHOLD) - 1;
             uint8_t v = strtol(q, 0, 0);
@@ -509,7 +502,9 @@ namespace {
             magSensor.resetToOTP();
             magSensor.wakeup(); // resetToOTP set sleep()
             return true;
-        }else if (q = strstr(pCmd, DUMP_RFM69))
+        }
+#endif
+        else if (q = strstr(pCmd, DUMP_RFM69))
         {
             radio.readAllRegs();
             return true;
@@ -805,12 +800,19 @@ namespace {
 }
 
 // Pcb3Si7210 methods********************************************************************
-    uint16_t Pcb3Si7210::Setup() 
+    void Pcb3Si7210::Setup() 
     {
         auto OTPthreshold = si7210.setup();
         Serial.print("si7210 OTP threshold=");
         Serial.println(OTPthreshold);
-        return OTPthreshold;
+    
+        auto swop = getRaingaugeSwop();
+        if (swop != 0xffu)
+            SetupSwOp(swop);
+    
+        auto hyst = getRaingaugeSwHyst();
+        SetupSwHyst(hyst);
+        FinishSetup();
     }
     bool Pcb3Si7210::isInterrupting()
     {
