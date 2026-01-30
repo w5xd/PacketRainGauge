@@ -366,6 +366,9 @@ for the AH1383 specified for this build. The -82 and -81 parts have smaller thre
 but, because all the parts in this series are unipolar, and because the field is of opposite
 polarity on opposite ends of the rocker travel, all the parts should work and
 will switch states very close to the X=.177 point where the field polarity reverses. 
+A backwards magnet will get the same field amplitudes, but in opposite polarity, which
+means only the AH1381 has any hope of turning on, and then only when the magnet is
+as far as possible from the sensor. Backwards won't work.
 <h4>Sideways magnet calculation</h4>
 The field calculator can also be used to predict what will happen if the magnet is incorrectly
 installed
@@ -377,16 +380,10 @@ The calculator predicts zero amplitude B<sub>X</sub> at X=0 (not graphed--the an
 peaking at about X=0.1 inch 
 with about 700 Gause (also not graphed), and dropping down to about 40 Gause at the far rocker rest stop of X=0.42.
 <p align='center'><img  src='MagSidewaysFieldBucket.png' alt='MagSidewaysFieldBucket.png'/></p>
-There are at least two problems, the first of which is enough to ensure the system won't work:
 Slight movement of the rocker around X=0 will move the field both above the ON threshold and below the
-OFF threshold. Therefore, multiple redundant signalling the rocker around X=0 can be expected. The second
-problem is that at the far rocker position, X=.42, the B<sub>X</sub> value is calculated to have
-dropped to nearly the OFF threshold, which means sometimes the device will signal arrival
-at the far rocker stop as well. 
-Left as an exercise to the reader is the question of what happens if the magnet is installed in the
-other sideways orientation. That is, there are four possible orientations of the magnet,
-and only one of them will work reliably. Hint: the B<sub>X</sub> values are
-the same amplitude but of opposite sign.
+OFF threshold. Therefore, multiple redundant signalling the rocker around X=0 can be expected. This
+applies to both possible incorrect sideways orientations. (Only the polarity of the field at the
+sensor is reversed with respect to the other sideways orientation.)
 <h3>Sketch parameter setup</h3>
 All the magnetic field calculations in the previous section apply to the Si7210, but
 the Si7210 and its sketch have many programmable settings for 
