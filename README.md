@@ -5,7 +5,7 @@ again when it retreats from a hall effect sensor. It consists
 of a Printed Circuit Board (PCB) design, an Arduino sketch, and two variations on a funnel
 that catches rain. One variant is a retrofit to install in a discarded rain gauge funnel
 from an Oregon Scientific RGR126N Wireless Rain Gauge. If you don't 
-have an RGR126N to retrofit, there is included  a 3D printable outdoor untit, which I designed
+have an RGR126N to retrofit, there is included  a 3D printable outdoor unit, which I designed
 as a remix of this 
 <a href='https://www.thingiverse.com/thing:4725413'>thingiverse rain gauge</a>.
 
@@ -36,7 +36,7 @@ The parts designed with FreeCAD are:
 <li><code>Placement-sensor enclosureBody002</code></li>
 </ul>
 
-The PCB enclosure parts need to geometrically mate with both the Pluviometer-base, designed in OpenSCAD,
+The PCB enclosure parts geometrically mate with both the Pluviometer-base, designed in OpenSCAD,
 and the printed circuit board outline and hole pattern, which is available as a STEP model. The motivation for using FreeCAD
 is that it can be configured to create a model that itself depends on both the OpenSCAD model of the base and bucket,
 and the STEP model of the PCB. While the
@@ -67,11 +67,12 @@ to the relay
 as the rocker passed top dead center
 in both directions, which means the rocker was moving relatively quickly as the relay sensed it.  
 
-The hall effect magnetic sensor is used in this design instead of a reed relay. The sketch
-and sensor can
+A hall effect magnetic sensor is used in this design instead of a reed relay. The Si7210
+version of the PCB, sketch, and sensor can
 easily be programmed to separately detect the arrival and the departure of the magnet from
-proximity to the sensor. This design does that. It positions its sensor
-in close alignment with the rocker at its resting position with one
+proximity to the sensor. (A non-programmable AH1383 sensor can be substituted.)
+The geometric desgin positions the sensor
+in close alignment with the rocker <b>at its resting position</b> with one
 cup down&mdash;the left one in the photo above. Its Arduino
 sketch is programmed to separately report the arrival and departure of the rocker, sending a packet for
 each. The new magnet is mounted in the same recess in the rocker as the old magnet. 
@@ -80,8 +81,7 @@ opposed to 0.3g on my scale, so a calibration check is in order before putting i
 The result is this design sends packets at (almost) the same rate per volume of rainfall
 as the old one, just not quite at the exact same rocker positions.
 
-
-The sensor manufacturer publishes a detailed discussion about magnets&mdash;including details
+Silicon Labs publishes a detailed discussion about magnets&mdash;including details
 about this exact scenario: replacing a reed relay with a hall effect sensor&mdash;about how the
 magnet axis and sensor geometry are related: 
 <a href='https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf'>
@@ -130,7 +130,7 @@ monitoring the condition of the funnel assembly. Direct
 sunlight on the funnel makes its value not representative
 of ambient air temperature because the funnel must be 
 mounted in the open to be useful as a rain gauge.
-
+<br/><br/>
 The gateway's processing of the rainfall messages is not part of this
 repository. See the repository at https://github.com/w5xd/diysha for
 an example. In that project, the receipt of rainfall packets writes a
@@ -142,16 +142,12 @@ The <a href='https://www.sparkfun.com/products/11114'>Arduino Pro Mini</a> requi
 following PCB options to be made in order to work 
 in this project:
 <ul>
-<li>The 3.3V version of the Pro Mini is <b>required</b> as opposed to the 5V version.
+<li>The 3.3V version of the Pro Mini is <b>required</b> (<i>i.e.</i> not the 5V version.)
 <li>Jumper SJ1 (top side, close to the GND pad) must be desoldered to remove the red power LED's power drain.
 <li>The bottom side i2c pullup positions, R1 and R3, can each have a 4.7K 
 resistor installed. Two SMD 0603 size resistors just fit inside a hole
-in the PCB designed to clear them. Alternatively, REV03 of the PCB has positions for SMD
-0804  pull up resistors that are not quite so tiny.
-<li>The 330 ohm resistor just inside pins D11 and D12 can be removed (or cut with a diagonal 
-cutter.) This
-disables the green LED to prevent its battery drain and load on the SCK line. The LED is
-almost never turned on by the sketch, so removing it saves very little.
+in the PCB designed to clear them. Alternatively, REV02 and higher of the PCB has positions for SMD
+0805  pull up resistors that are not quite so tiny.
 </ul>
 
 PCB Parts for PCB version 3 and later
@@ -168,7 +164,7 @@ RFM69HCW</a></li>
 <li>10M resistor size SMD 1206
 <li>2.7K resistor size SMD 1206
 <li>2 by 4.7K resistors size SMD 0805
-<li>3 by 10uF 10V tantalum in SMD 1206
+<li>3 by 10uF 10V tantalum or ceramic in SMD 1206
 <li>.1uF ceramic 16V in SMD1206
 </ul>
 
@@ -178,7 +174,6 @@ Mouser <a href='https://www.mouser.com/Tools/Project/Share?AccessID=1e16e65a5d'>
 Mount the Arduino directly to the PCB without headers. 
 
 <p align='center'><img src='PCB/IMGP2912-v.jpg' alt='PCB top'/></p>
-
 
 Its important to:
 <ul>
@@ -196,7 +191,8 @@ solder them one pin at a time.
 
 The PCB circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
 
-The hall effect sensor is mounted to the <i>bottom</i> of the PCB. 
+The hall effect sensor is mounted to the <i>bottom</i> of the PCB. (REV01 shown, later revisions
+are similar nn this bottom view.)
 <p align='center'><img src='PCB/IMGP2913-v.jpg' alt='PCB bottom'/></p>
 This is the only part on the bottom.
 I used an SMD oven to mount it first (and nothing else in the oven with it.) After it cooled off, 
@@ -207,14 +203,13 @@ a solder paste mask in its gerber files, I found it easier just to use a very sm
 The RFM69 is documented to be
 oven-safe, but I have destroyed at least one (maybe not because of the oven?) and its
 easy enough to hand solder its 100 thou wide solder pads.
-
+<br/><br/>
 Setting up the Arduino requires programming the part, and also requires 
 serial port commands to configure the radio parameters.  Connecting to the Pro Mini's
 serial port is a bit of a trick because the enclosure cannot accommodate a standard
 0.100" header soldered onto the board. One option is to solder on a header, program
 the sketch, set its parameters through the same serial port header,
  and then cut the header off to install the Arduino in its enclosure.
-
 Alternatively, the PCB has
  a hole pattern that enables  a pogo adapter to access either 
 the standard ISP
@@ -224,8 +219,9 @@ Arduino's serial port.
 <p align='center'><img alt='programming-jig' src='programming-jig.jpg'/></p>
 
 The serial port pin layout on this PCB is 3 extra pins alongside the standard 6-pin ISP header.
-I used a <a href=''>SparkFun ISP Pogo Adapter</a> with an FTDI USB serial breakout
-to both program the sketch onto this PCB, and to set its configurable parameters. Be sure
+I custom assembled a <a href=''>SparkFun ISP Pogo Adapter</a> with an FTDI USB serial breakout
+to access the Arduino serial port this PCB. It can be used both to program
+the CPU, and to set its configurable parameters. Be sure
 you wire the 3.3VDC to the pogo! The RFM69 will be destroyed if you 
 apply 5VDC.
 
@@ -256,30 +252,27 @@ jumper directly on the break out between its ground and CTS.
 
 A Pogo adapter wired as above to a serial break out can be used both to
 program the Arduino, and to use a terminal application for serial port
-commands to configure the packet radio parameters.
-
-A Pogo adapter can also be used posititioned to its standard wire assignments
-to program the Arduino, but the radio parameters
+commands to configure the packet radio parameters. A different Pogo 
+adapter can also be used posititioned to its standard wire assignments
+to program the Arduino on its ISP port, but the radio parameters
 can only be configured through the serial port.
 
-<h3>Enclosure</h3>
-Both enclosure designs, the retrofit and the full outdoor unit, print as two parts. 
+<h3>Enclosures</h3>
+Both PCB enclosure designs, the retrofit and the full outdoor unit, print as two parts. 
 The retrofit base has three mounting holes matching the original rocker-mounted PCB. 
 The other part, for either design, has three holes
 for wires: one each for the radio antenna, ground, and 3.3V. 
-
 Once the Arduino is configured, use a silicon sealant
 on the joints between the base and cover, and also to seal the wire holes.
 Consider the enclosure as disposable. If you use a silicon rubber sealant,
 you might be able to use a box cutter to open it if you need to reprogram
 the Arduino. But plan to 3D print a replacement enclosure should you ever
 open it.
- 
 On the retrofit, I substituted #4 brass wood screws for the original steel screws that held
 the PCB inside the funnel assembly, because I suspected that the strong
 magnet attraction on them might chage the mechanical balance of the rocker
  and thus change the calibration.
-
+<br/><br/>
 The full outdoor unit needs the following commercially available parts to house
 the dual cell AA battery:
 <ol>
@@ -299,55 +292,113 @@ The O ring seals the battery compartment against water.
 </ol>
 
 When assembling the two enclosure halves together (Body001 and Body002) with the PCB in between as a 
-sandwich, shoud not be possible to squeeze them tightly enough to permanently actuate the RESET switch
+sandwich, it shoud not be possible to squeeze them tightly enough to permanently actuate the RESET switch
 built into the Sparkfun Arduino Pro Mini. But check it. It won't telemeter and it will run
 down the battery in about 24 hours.
 
 <h3 id="MAGNET_ORIENTATION">Magnet Orientation</h3>
 The B422 magnet's 1/4" dimension fits into the rocker mount in the obvious 1/4" slot dimension. 
-But that geometry makes
-four 1/8" sides to the magnet that might face the sensor and only two of them work!
-(Well, it will probably work with the "wrong" orientation anyway because the hall effect sensor is very
-good at detecting near versus far if any field lines cross it at all, and they do in this funnel.)
-The magnet has two opposing 1/8" faces that are optimum to face the sensor
-(the ones with the poles) and the other two 1/8" faces are far less effective to sense! Another
-magnet with known poles helps figure out which face is right: the face that sticks to 
+But that constraint still leaves
+four 1/8" sides of the magnet that might face the sensor. <b>Only one of them works!</b>
+(well, the Si7210 can be programmed for two of the four.)
+The B422 magnet has two faces perpendicular to its pole axis and I'll call the other two
+"sideways." Another
+magnet with known poles can figure out which face is right: the face that sticks to 
 the other magnet IS one of the poles. Here
 are some more hints: <a href='https://www.kjmagnetics.com/products.asp?cat=163'>
-https://www.kjmagnetics.com/products.asp?cat=163</a>.  With the Si7210 sensor, the B422 may be mounted with either
-its North pole or South pole facing the PCB. (The North pole orientation will permanently give positive
-close-in readings in the magnetic sensor, the other will give negative.) For the AH1383, the South pole
+https://www.kjmagnetics.com/products.asp?cat=163</a>.  For the AH1383, the South pole
 must face the PCB.
-
+<br/><br/>
 You can also use the assembled
 PCB and sketch to read out the magnetic field with the magnet close. When oriented properly,
-it will read the maximum magnitude (either + or -, either pole axis works
-fine with the sketch) about 16000. Use the sketch's <code>ReadModeForSeconds</code> command to
+it will read the maximum magnitude (either + or -) about 16000. 
+Use the sketch's <code>ReadModeForSeconds</code> command to
 make the magnetic field print out continuously. Hold the magnet directly over the Si7210 and then
-slide it only 1/4" or so in all directions. If you have a pole directly facing the sensor (the 
+slide it only 1/4" or so in the 2 directions perpendicular to the magnet.
+If you have a pole directly facing the sensor (the 
 desired orientation) the sign will not change on the magnetic field. If you have an edge toward
 the sensor, the sign will change. (Why a sign change? if the N/S poles are sideways toward the
-sensor, moving it slightly will put the N and S alternately nearer to the sensor.) 
+sensor, moving it slightly will put the N and S alternately nearer to the sensor.) The AH1383
+version of the sketch also supports the <code>ReadModeForSeconds</code> command, but it
+only reads out +1 (for the magnet "close") and -1 for the magnet "far." You need the magnet
+oriented so its reads +1 on the AH1383. The compatible readout for the Si7210 is -16000 (or so.)
 
 <h3>Si7210 end-of-support and the AH1383</h3>
 Silicon Labs has announced end of support for the Si7210. The Diodes Incorporated AH1383
-is supported as a substitute. It solders onto the same pads as the Si7210, except
-the SDA/SCL lines for I2C are simply not connected.
+is supported as a substitute on the PCB and sketc. It solders onto the same pads as the Si7210, except
+the SDA/SCL lines for I2C are not connected.
 AS OF THIS WRITING, THE AH1383 DESIGN HAS NOT BEEN BUILT NOR TESTED.
-The AH1383 happens to fit on the same solder pads as the si7210, but has no I2C port.
-But it does have an active low output that indicates when the magnetic field applied
-exceeds its threshold. The magnet must be chosen to exceed that threshold as does
-the magnet specified above (or substitute the magnet and the AH1382 or AH1381 for 
-lower thresholds).<br/><br/>
-The AH1383 only supports one magnet orientation: the South pole of the magnet must
-face the top of the AH1383. The sketch as built for the AH1383 has a <code>ReadModeForSeconds</code>
-like for the Si7410, but it only prints out 1 for the magnet South close and -1 for the magnet far away. It is 
-important that the field readout as +1 when the magnet is close.
+The AH1383 happens to fit on the same solder pads as the si7210.
+Its active low output is on the same pin as the Si7210 Alert, and
+indicates when the magnetic field applied
+exceeds its threshold. The magnet must be chosen to exceed that threshold. See below.
 
+<h3>AH1383 thresholds: 45 Gause on, 35 Gause off</h3>
+The Si7210 version of this build is especially useful for experimentation because the sketch can
+be set for a wide range of on and off thresholds and can be made to operate either omnipolar
+or unipolar. However, that part might not be available. The AH1383 has built in thresholds which must
+be chosen to match the actual magnetic fields of the chosen physical magnet and geometery.
+This section describes that calculation. <br/><br/>
+The 3D printed rocker and sensor are spaced with the magnet and sensor about .15 inches apart
+along the N/S axis of the magnet, which is the Y dimension in the graph below. The rocker moves
+the magnet between two positions at X = 0 (magnet and sensor aligned) to about X = .42 inches
+where the rocker rests against the opposite stop. The AH1383 is specified to turn
+on at 45 Gause, and off at 35 Gause. The magnetic field calculations are from  
+<a href='https://www.kjmagnetics.com/magnetic-field-calculator.asp'>https://www.kjmagnetics.com/magnetic-field-calculator.asp</a>.
+Here is what the magnet/sensor geometry looks like for a properly installed magnet:
+<p align='center'><img src='MagFieldBucketMin.png' alt='MagFieldBucketMin.png'/></p>
+The next graph below shows that this particular magnet need move only a few thousanths of an inch around the
+point X=.177 inches for the B<sub>Y</sub> field to vary across 35 to 45 Gause, <i>i.e.</i> X=.177 is where the rocker is 
+halfway between its stops, also known as top dead center. With the magnet installed properly
+the sensor position is indicated by the arrow in the screen shots, as the magnet on
+the rocker moves left and right across the field.
+<p align='center'><img src='MagFieldBucket45Gause.png' alt='MagFieldBucket45Gause.png'/></p>
+The AH1383 is unipolar, which is important because with the rocker at the far stop, as 
+shown below, 
+the amplitude of the magnetic field has magnitude above the 35 or 45 Gause threshold,
+but of the opposite sign. (Parts specified as "omnipolar" will trigger above a
+threshold amplitude of either sign. They won't work here.)
+<p align='center'><img src='MagFieldBucketMax.png' alt='MagFieldBucket45Max.png'/></p>
+As can be seen from the graphs above, the parts AH1382 and AH1381 are suitable substitutes
+for the AH1383 specified for this build. The -82 and -81 parts have smaller thresholds,
+but, because all the parts in this series are unipolar, and because the field is of opposite
+directions on opposite ends of the rocker travel, all the parts should work and
+will switch states very close to the X=.177 point where the field direction reverses. In fact, 
+the lowest-threshold part, AH1381 might even work if the magnet is installed reversed,
+with its N pole facing the 
+sensor. How can that be? The 30 Gause in the "wrong" direction at the furthest rocker point
+is (about) enough to activate the -81. The -82 and -83 parts, however, have MAX turn-on specifications
+of 42 and 60 gause, respectively, for the ON point, so cannot be reliably used with a reversed magnet.
+<h4>Sideways magnet calculation</h4>
+The field calculator can also be used to predict what will happen if the magnet is incorrectly
+installed
+"sideways." Spoiler alert: it won't work. Sideways means the magnet is with its N/S pole axis along 
+the face of the rocker as opposed to facing
+the sensor. To calculate that behavior, reverse the X and Y everywhere they appear in the calculator. 
+The sensor position in this graph is at the arrow as in the graphs above, but moves up and down as the rocker moves.
+The calculator predicts zero amplitude B<sub>X</sub> at X=0 (not graphed--the answer is zero),
+peaking at about X=0.1 inch 
+with about 700 Gause (also not graphed), and dropping down to about 40 Gause at the far rocker rest stop of X=0.42.
+<p align='center'><img src='MagSidewaysFieldBucket.png' alt='MagSidewaysFieldBucket.png'/></p>
+There are at least two problems, the first of which is enough to ensure the system won't work:
+Slight movement of the rocker around X=0 will move the field above the ON threshold and below the
+OFF threshold. Multiple redundant signalling the rocker around X=0 can be expected. The second
+problem is that at the far rocker position, X=.42, the B<sub>X</sub> value is calculated to have
+dropped to nearly the OFF threshold, which means sometimes the device will signal arrival
+at the far rocker stop as well. That is, multiple redundant signals. 
+Left as an exercise to the reader is the question of what happens if the magnet is installed in the
+other sideways orientation. That is, there are four possible orientations of the magnet,
+and only one of them will work reliably. Hint: the B<sub>X</sub> values are
+the same amplitude but of opposite sign.
 <h3>Sketch parameter setup</h3>
-This advice applies to both physical arrangements, the Oregon Scientific funnel retrofit, and 
-3D printable design presented here. But these sketch parameters only affect the Si7210 chip.
-They have no effect if the AH1383 is installed.
+All the magnetic field calculations in the previous section apply to the Si7210, but
+the Si7210 and its sketch have many programmable settings for 
+thresholds and polarity. That is, the Si7210 can support
+a much wider range of magnet strengths and geometry. In the physical designs presented here, it means
+smaller magnets can be used than specified, and the N/S axis orientation can work in two
+directions, rather than just the one that the AH1383 must see.
+Th sketch parameter advice here applies to both physical arrangements, the Oregon Scientific funnel retrofit, and 
+3D printable design presented here. 
 <ul><li>Mount the magnet with either its N
 or S pole facing the sensor as described in the previous section.</li>
 <li>The recommended Si7210 interrupt threshold and hysteresis settings are a relatively
