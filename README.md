@@ -336,39 +336,36 @@ exceeds its threshold. The magnet must be chosen to exceed that threshold. See b
 <h3>AH1383 thresholds: 45 Gause on, 35 Gause off</h3>
 The Si7210 version of this build is especially useful for experimentation because the sketch can
 be set for a wide range of on and off thresholds and can be made to operate either omnipolar
-or unipolar. However, that part might not be available. The AH1383 has built in thresholds which must
-be chosen to match the actual magnetic fields of the chosen physical magnet and geometery.
+or unipolar. However, that part might not be available. The AH1383 has built in thresholds,
+on at 45 Gause, and off at 35 Gause, which must
+be compatible with the actual magnetic fields of the chosen physical magnet and geometery.
 This section describes that calculation. <br/><br/>
 The 3D printed rocker and sensor are spaced with the magnet and sensor about .15 inches apart
 along the N/S axis of the magnet, which is the Y dimension in the graph below. The rocker moves
 the magnet between two positions at X = 0 (magnet and sensor aligned) to about X = .42 inches
-where the rocker rests against the opposite stop. The AH1383 is specified to turn
-on at 45 Gause, and off at 35 Gause. The magnetic field calculations are from  
+where the rocker rests against the opposite stop. The magnetic field calculations are from  
 <a href='https://www.kjmagnetics.com/magnetic-field-calculator.asp'>https://www.kjmagnetics.com/magnetic-field-calculator.asp</a>.
-Here is what the magnet/sensor geometry looks like for a properly installed magnet:
-<p align='center'><img src='MagFieldBucketMin.png' alt='MagFieldBucketMin.png'/></p>
+Here is what the magnet/sensor geometry looks like for a properly installed magnet and with the
+rocker directly under the magnet:
+<p align='center'><img  src='MagFieldBucketMin.png' alt='MagFieldBucketMin.png'/></p>
 The next graph below shows that this particular magnet need move only a few thousanths of an inch around the
-point X=.177 inches for the B<sub>Y</sub> field to vary across 35 to 45 Gause, <i>i.e.</i> X=.177 is where the rocker is 
-halfway between its stops, also known as top dead center. With the magnet installed properly
-the sensor position is indicated by the arrow in the screen shots, as the magnet on
-the rocker moves left and right across the field.
-<p align='center'><img src='MagFieldBucket45Gause.png' alt='MagFieldBucket45Gause.png'/></p>
+point X=.177 inches for the B<sub>Y</sub> field shift signs, which is where the
+amplitude moves through both the ON and OFF thresholds of the part. X=.177 is not quite half
+way through the rocker movement with top dead center at X=.42/2 = 0.21 inches. With the magnet installed properly
+the sensor position is indicated by the arrow in the screen shots, and the magnet on
+the rocker moves left and right across the field as graphed here.
+<p align='center'><img   src='MagFieldBucket45Gause.png' alt='MagFieldBucket45Gause.png'/></p>
 The AH1383 is unipolar, which is important because with the rocker at the far stop, as 
 shown below, 
 the amplitude of the magnetic field has magnitude above the 35 or 45 Gause threshold,
 but of the opposite sign. (Parts specified as "omnipolar" will trigger above a
 threshold amplitude of either sign. They won't work here.)
-<p align='center'><img src='MagFieldBucketMax.png' alt='MagFieldBucket45Max.png'/></p>
+<p align='center'><img  src='MagFieldBucketMax.png' alt='MagFieldBucket45Max.png'/></p>
 As can be seen from the graphs above, the parts AH1382 and AH1381 are suitable substitutes
 for the AH1383 specified for this build. The -82 and -81 parts have smaller thresholds,
 but, because all the parts in this series are unipolar, and because the field is of opposite
-directions on opposite ends of the rocker travel, all the parts should work and
-will switch states very close to the X=.177 point where the field direction reverses. In fact, 
-the lowest-threshold part, AH1381 might even work if the magnet is installed reversed,
-with its N pole facing the 
-sensor. How can that be? The 30 Gause in the "wrong" direction at the furthest rocker point
-is (about) enough to activate the -81. The -82 and -83 parts, however, have MAX turn-on specifications
-of 42 and 60 gause, respectively, for the ON point, so cannot be reliably used with a reversed magnet.
+polarity on opposite ends of the rocker travel, all the parts should work and
+will switch states very close to the X=.177 point where the field polarity reverses. 
 <h4>Sideways magnet calculation</h4>
 The field calculator can also be used to predict what will happen if the magnet is incorrectly
 installed
@@ -379,7 +376,7 @@ The sensor position in this graph is at the arrow as in the graphs above, but mo
 The calculator predicts zero amplitude B<sub>X</sub> at X=0 (not graphed--the answer is zero),
 peaking at about X=0.1 inch 
 with about 700 Gause (also not graphed), and dropping down to about 40 Gause at the far rocker rest stop of X=0.42.
-<p align='center'><img src='MagSidewaysFieldBucket.png' alt='MagSidewaysFieldBucket.png'/></p>
+<p align='center'><img  src='MagSidewaysFieldBucket.png' alt='MagSidewaysFieldBucket.png'/></p>
 There are at least two problems, the first of which is enough to ensure the system won't work:
 Slight movement of the rocker around X=0 will move the field both above the ON threshold and below the
 OFF threshold. Therefore, multiple redundant signalling the rocker around X=0 can be expected. The second
