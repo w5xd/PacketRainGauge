@@ -381,11 +381,11 @@ peaking at about X=0.1 inch
 with about 700 Gause (also not graphed), and dropping down to about 40 Gause at the far rocker rest stop of X=0.42.
 <p align='center'><img src='MagSidewaysFieldBucket.png' alt='MagSidewaysFieldBucket.png'/></p>
 There are at least two problems, the first of which is enough to ensure the system won't work:
-Slight movement of the rocker around X=0 will move the field above the ON threshold and below the
-OFF threshold. Multiple redundant signalling the rocker around X=0 can be expected. The second
+Slight movement of the rocker around X=0 will move the field both above the ON threshold and below the
+OFF threshold. Therefore, multiple redundant signalling the rocker around X=0 can be expected. The second
 problem is that at the far rocker position, X=.42, the B<sub>X</sub> value is calculated to have
 dropped to nearly the OFF threshold, which means sometimes the device will signal arrival
-at the far rocker stop as well. That is, multiple redundant signals. 
+at the far rocker stop as well. 
 Left as an exercise to the reader is the question of what happens if the magnet is installed in the
 other sideways orientation. That is, there are four possible orientations of the magnet,
 and only one of them will work reliably. Hint: the B<sub>X</sub> values are
@@ -438,7 +438,7 @@ The full outdoor unit, as <a href='https://www.thingiverse.com/thing:4725413'>do
 clicks every 0.15mm of rain. As of the latest update to this repository, a 1/4" hex weighting nut is added
 to the rocker to make the water volume more consistent, and to require more water to rock it. 
 I measure 0.38mm of rain per click. Your mileage may vary. 
-
+<br/><br/>
 What is the highest rainfall rate that can be telemetered? There are at least two different
 parts of this design that might limit the highest rate: (a) water pouring through the funnel
 so fast that it rocks the bucket by force of the pouring water instead of the designed behavior, which
@@ -453,5 +453,5 @@ The actual limit is likely much faster than that.  A bucket dump every 3 seconds
 corresponds to a rainfall rate of about 7 inches per hour. 
 If your raingauge
 experiences more than 7 inches per hour and you are in the vicinity, then you have more serious problems than 
-whether the raingauge can keep up.
+whether your raingauge can keep up.
 
