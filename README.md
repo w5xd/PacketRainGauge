@@ -118,7 +118,7 @@ alkaline or lithium cells.
 </ul>
 
 <h2>Arduino sketch</h2>
-The <a href='PacketRainGauge'>sketch</a> sends a packet to the Packet Gateway every time the 
+The <a href='PacketRainGauge/PacketRainGauge.ino'>sketch</a> sends a packet to the Packet Gateway every time the 
 magnet on the rocker arm either arrives at, or departs from the
 sensor. The message
 packet also contains a battery voltage measurement, the TMP175
