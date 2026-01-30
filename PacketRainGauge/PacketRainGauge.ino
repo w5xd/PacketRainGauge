@@ -6,12 +6,7 @@
 * 
 * This design also reports a temperature from a TMP175 sensor and a battery 
 * voltage level. It also originates packets on a timed interval in the absence of rainfail.
-* 
-***************************************************
-* This version of the sketch REQUIRES PCB version 3
-* PCB 3 switches D16/D17, adds D7 output, and
-* allows for either Si7210 or AHE1383 as sensor
-***************************************************/
+*/
 
 #include <RadioConfiguration.h>
 #include <SPI.h>
