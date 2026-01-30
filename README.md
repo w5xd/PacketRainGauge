@@ -161,9 +161,9 @@ PCB Parts for PCB version 3 and later
 RFM69HCW</a></li>
 <li><a href='https://www.silabs.com/documents/public/data-sheets/si7210-datasheet.pdf'>Si7210-B-04-IVR</a> I2C Hall effect sensor in SOT-23-5 package or...<br/>
 <a href='https://www.mouser.com/datasheet/3/175/1/AH1381_AH1382_AH1383.pdf'>Diodes Incorporated AH1383</a> in SOT-23-5</li>
-<li><a href='https://www.ti.com/lit/ds/symlink/sn74ahc1g86-q1.pdf'>SN74AHC1G86</a> Single 2 input XOR in SOT-23 package</li>
-<li><a href='https://www.ti.com/lit/ds/symlink/sn74ahc1g02.pdf'>SN74AHC1G02</a> Single 2 input NOR in SOT-23 package</li>
-<li><a href='https://www.ti.com/lit/ds/symlink/sn74ahc1g14.pdf'>SN74AHC1G14</a> Single Schmidt inverter SOT-23 package</li>
+<li><a href='https://assets.nexperia.com/documents/data-sheet/74HC_HCT1G86.pdf'>SN74HC1G86</a> Single 2 input XOR in SOT753 package</li>
+<li><a href='https://assets.nexperia.com/documents/data-sheet/74HC_HCT1G02.pdf'>SN74HC1G02</a> Single 2 input NOR in SOT753 package</li>
+<li><a href='https://assets.nexperia.com/documents/data-sheet/74HC_HCT1G14.pdf'>SN74HC1G14</a> Single Schmidt inverter SOT753 package</li>
 <li><a href='https://www.ti.com/lit/ds/symlink/tmp175.pdf'></a>TMP175 temperature sensor in 8 SOIC package
 <li>10M resistor size SMD 1206
 <li>2.7K resistor size SMD 1206
@@ -224,8 +224,7 @@ Arduino's serial port.
 <p align='center'><img alt='programming-jig' src='programming-jig.jpg'/></p>
 
 The serial port pin layout on this PCB is 3 extra pins alongside the standard 6-pin ISP header.
- I used a
-<a href=''>SparkFun ISP Pogo Adapter</a> with an FTDI USB serial breakout
+I used a <a href=''>SparkFun ISP Pogo Adapter</a> with an FTDI USB serial breakout
 to both program the sketch onto this PCB, and to set its configurable parameters. Be sure
 you wire the 3.3VDC to the pogo! The RFM69 will be destroyed if you 
 apply 5VDC.
@@ -268,7 +267,6 @@ Both enclosure designs, the retrofit and the full outdoor unit, print as two par
 The retrofit base has three mounting holes matching the original rocker-mounted PCB. 
 The other part, for either design, has three holes
 for wires: one each for the radio antenna, ground, and 3.3V. 
-
 
 Once the Arduino is configured, use a silicon sealant
 on the joints between the base and cover, and also to seal the wire holes.

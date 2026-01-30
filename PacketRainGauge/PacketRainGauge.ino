@@ -4,9 +4,8 @@
 * to its sensor. The usual application is to mount a magnet on
 * a rocker under a rain gauge funnel.
 * 
-* This design also reports a temperature
-* from a TMP175 sensor and a battery voltage level. It also originates packets
-* on a timed interval in the absence of rainfail.
+* This design also reports a temperature from a TMP175 sensor and a battery 
+* voltage level. It also originates packets on a timed interval in the absence of rainfail.
 * 
 ***************************************************
 * This version of the sketch REQUIRES PCB version 3
@@ -39,6 +38,7 @@
 #define USE_RFM69
 #define TELEMETER_BATTERY_V
 
+// because the LED is on the SPI clock (SPK) line, access to the RFM69 flashes it dimly
 //#define FLASH_LED_ON_WAKEUP // for debugging
 
 #define FAR_THRESHOLD(X) (X)/32
@@ -47,7 +47,7 @@
 #define REVISION "REV08"
 #define PCB_REV_NUMBER 2 // Sketch supports versions 2 or 3 only
 
-// Only one of the following may be defined
+// Only one of the following sensors may be defined
 //#define USE_AH1383
 #define USE_S7210
 
@@ -59,20 +59,22 @@
 #if PCB_REV_NUMBER >= 3 || !defined(USE_AH1383)
 #define EXPERIMENTAL_AH1383_ON_PCBV2 0
 #else
-// This is not a viable solution for permanent install because it telemeters NOTHING while the bucket magnet
-// is on the sensor. But it works normally if the bucket stops rocking away from the magnet.
+/* EXPERIMENTAL_AH1383_ON_PCBV2 is not a viable solution for permanent install because it telemeters 
+** NOTHING while the bucket magnet is direcly over the sensor. But it works normally if the bucket 
+** stops rocking away from the magnet.*/
 #define EXPERIMENTAL_AH1383_ON_PCBV2 1 
 #endif
 
 class Pcb3Si7210
 {   // The Si7210 is an I2C part that can read mag fields and has various parameters
-    // Its "alert" output is wired to the Arduino ROCKER_INPUT_PIN
+    // Its "alert" output is wired to ROCKER_INPUT_PIN
  public:
     Pcb3Si7210() : si7210(0x33)
     {}
     static uint16_t threshold(uint8_t sw_op) { return Si7210::threshold(sw_op);}
     static uint16_t hysteresis(uint8_t sw_hyst){return Si7210::hysteresis(sw_hyst);}
     bool isSleeping() const { return si7210.isSleeping();}
+    bool isInterrupting();
     void wakeup() {  si7210.wakeup();}
     uint8_t sleep(bool fromOTP = true) { return si7210.sleep(fromOTP);}
     void resetToOTP() {  si7210.resetToOTP();}
@@ -103,13 +105,13 @@ class Pcb3Si7210
 };
 
 class Ah1383 {
-    // The AH1383 is a hall effect uni-polar switch that is either ON or OFF
-    // and is read on the ROCKER_INPUT_PIN
+    // The AH1383 is a hall effect uni-polar switch that is either ON or OFF,
+    // which is read on the ROCKER_INPUT_PIN
     public:
     int16_t toggleOutputSense();
     bool loop(unsigned long, bool &rainActivated, Si7210::MagField_t&magField);
-
     void Setup(){};
+    bool isInterrupting();
     void SetupSwOp(uint8_t swop){}
     void SetupSwHyst(uint8_t hyst){}
     uint16_t setSwOp(uint8_t v){return 0;}
@@ -154,7 +156,7 @@ namespace {
 #endif
    const int SENSOR_INTERRUPT_INVERT_PIN = 7;
 
-    /* The Pro Mini has two interrupt pins that have the right features
+    /* The Pro Mini has two interrupt pins that have the necessary features
     ** for responding to the three sources in this design, INT0 and INT1:
     ** 1. the RFM69
     ** 2. the R1/C1 sleep timer
@@ -166,6 +168,7 @@ namespace {
     ** so the interrupt handler on the sketch can distinguish the cause.
     */
 
+    // after "listening" to Serial and RFM69 for as long as below, go to very low power sleep until INT0 or INT1
     const unsigned long FirstListenAfterTransmitMsec = 20000;// at system reset, listen Serial/RF for this long
     const unsigned long NormalListenAfterTransmit = 300;// after TX, go to RX for this long
 
@@ -250,6 +253,9 @@ namespace {
 #endif
     const unsigned MAX_SLEEP_LOOP_COUNT = 5000;
     const unsigned MONITOR_ROCKER_MSEC = 100; // go at least this long after waking before assuming it was RC was the cause
+    const int MAX_WAIT_FOR_TOGGLE_MSEC = 100;
+    const long SERIAL_PORT_BAUDS = 38400;
+    const int MAX_MAGFIELD_POLL = 10;
 
     RadioConfiguration radioConfiguration;
     unsigned long TimeOfWakeup;
@@ -259,13 +265,8 @@ namespace {
 
     Sensor_t magSensor;
     bool prevSentMagnetClose;
-    const int MAX_WAIT_FOR_TOGGLE_MSEC = 100;
-    const long SERIAL_PORT_BAUDS = 38400;
-    const int MAX_MAGFIELD_POLL = 10;
-
     bool enableSerial = true;
     bool radioOK = false;
-
     auto ReadModeStop = millis();
     bool readMode = false;
 }
@@ -404,10 +405,10 @@ void setup()
  * sleep using SleepTilNextInterrupt. */
 
 namespace {
-    unsigned SleepTilNextInterrupt();
-
     unsigned long ListenAfterTransmitMsec = FirstListenAfterTransmitMsec;
     unsigned int sampleCount;
+
+    unsigned SleepTilNextInterrupt();
 
     void SetSerialEnabled(bool newVal)
     {
@@ -430,7 +431,6 @@ namespace {
     bool processCommand(const char *pCmd)
     {       
         const char *q = pCmd;
-
         if (strncmp(pCmd, SET_LOOPCOUNT, sizeof(SET_LOOPCOUNT) - 1) == 0)
         {
             pCmd = RadioConfiguration::SkipWhiteSpace(
@@ -526,6 +526,7 @@ namespace {
         }
         return false;
     }
+
     bool MonitorRockerInput(unsigned long);
 }
 
@@ -588,7 +589,7 @@ void loop()
 
     // If there is any serial input, add it to the buffer:
 
-    if (enableSerial && Serial.available() > 0)
+    while (enableSerial && Serial.available() > 0)
     {
         TimeOfWakeup = now; // extend timer while we hear something
         char input = Serial.read();
@@ -722,7 +723,6 @@ namespace {
 
         magSensor.sleep(false);
 
-        // sleep mode power supply current measurements indicate this appears to be redundant
         power_all_disable(); // turn off everything
 
         unsigned count = 0;
@@ -730,8 +730,8 @@ namespace {
         // this uses R1 and C1 to ground
         while (count < SleepLoopTimerCount)
         {
-            #if EXPERIMENTAL_AH1383_ON_PCBV2==0
-            if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+            #if EXPERIMENTAL_AH1383_ON_PCBV2==0 // this is the "normal" code. Test code is below
+            if (magSensor.isInterrupting())
                 break;
             power_timer0_enable(); // delay() requires this
             pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
@@ -811,6 +811,10 @@ namespace {
         Serial.print("si7210 OTP threshold=");
         Serial.println(OTPthreshold);
         return OTPthreshold;
+    }
+    bool Pcb3Si7210::isInterrupting()
+    {
+        return digitalRead(ROCKER_INPUT_PIN) == LOW;
     }
     void Pcb3Si7210::FinishSetup()
     {
@@ -1035,6 +1039,15 @@ void Ah1383::DoReadMode(unsigned long now, Si7210::MagField_t magField)
             }
         }
     }
+}
+
+bool Ah1383::isInterrupting()
+{
+#if EXPERIMENTAL_AH1383_ON_PCBV2==0 // normal
+    return (digitalRead(ROCKER_INPUT_PIN) == LOW) ^ (digitalRead(SENSOR_INTERRUPT_INVERT_PIN) == HIGH);
+#else
+    return digitalRead(ROCKER_INPUT_PIN) == LOW;
+#endif
 }
 
 bool Ah1383::loop(unsigned long now, bool &, Si7210::MagField_t&magField)
