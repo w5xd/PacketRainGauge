@@ -34,7 +34,7 @@
 #define TELEMETER_BATTERY_V
 
 // because the LED is on the SPI clock (SPK) line, access to the RFM69 flashes it dimly
-//#define FLASH_LED_ON_WAKEUP // for debugging
+//#define FLASH_LED_ON_WAKEUP // for debugging. flashes it longer
 
 #define FAR_THRESHOLD(X) (X)/32
 #define NEAR_THRESHOLD(x) (x)/6
@@ -43,8 +43,8 @@
 #define PCB_REV_NUMBER 2 // Sketch supports versions 2 or 3 only
 
 // Only one of the following sensors may be defined
-//#define USE_AH1383
-#define USE_S7210
+#define USE_AH1383
+//#define USE_S7210
 
 #if defined(USE_RFM69)
 #include <RFM69.h>
@@ -506,7 +506,7 @@ namespace {
         }else if (q = strstr(pCmd, READ_MODE_SECONDS))
         {
             q += sizeof(READ_MODE_SECONDS) - 1;
-            uint8_t v = static_cast<uint8_t>(strtol(q, 0, 0));
+            auto v = static_cast<uint16_t>(strtol(q, 0, 0));
             if (v > 0)
             {
                 ReadModeStop = millis() + 1000 * static_cast<long>(v);
@@ -885,8 +885,12 @@ void Pcb3Si7210::DoReadMode(unsigned long now, Si7210::MagField_t magField)
     {
         if (enableSerial)
         {
-            auto v = digitalRead(ROCKER_INPUT_PIN);
+            TimeOfWakeup = now;
+            auto v = digitalRead(RC_RLY_INTERRUPT_PIN);
             Serial.print(F("Int="));
+            Serial.print(v);
+            Serial.print(F(" Rocker="));
+            v = digitalRead(ROCKER_INPUT_PIN);
             Serial.print(v);
             Serial.print(F(" Magfield: "));
             Serial.println(magField);
@@ -1019,44 +1023,39 @@ int16_t Ah1383::toggleOutputSense()
 void Ah1383::DoReadMode(unsigned long now, Si7210::MagField_t magField)
 {
     if (now > ReadModeStop)
+    {
+        if (readMode)
+            Serial.println(F("Canceling read mode"));
         readMode = false;
+    }
     else
     {
-        if (enableSerial)
-        {
-            static auto prevMagfield = -magField;
-            if (magField != prevMagfield)
-            {
-                auto v = digitalRead(ROCKER_INPUT_PIN);
-                Serial.print(F("Int="));
-                Serial.print(v);
-                Serial.print(F("Magfield: "));
-                Serial.println(magField);
-                prevMagfield = magField;
-            }
-        }
+        TimeOfWakeup = now;
+        auto v = digitalRead(RC_RLY_INTERRUPT_PIN);
+        Serial.print(F("Int="));
+        Serial.print(v);
+        Serial.print(F(" Rocker="));
+        v = digitalRead(ROCKER_INPUT_PIN);
+        Serial.print(v);
+        Serial.print(F(" Magfield: "));
+        Serial.println(magField);
     }
 }
 
 bool Ah1383::isInterrupting()
 {
-#if EXPERIMENTAL_AH1383_ON_PCBV2==0 // normal
-    return (digitalRead(ROCKER_INPUT_PIN) == LOW) ^ (digitalRead(SENSOR_INTERRUPT_INVERT_PIN) == HIGH);
-#else
     return digitalRead(ROCKER_INPUT_PIN) == LOW;
-#endif
 }
 
-bool Ah1383::loop(unsigned long now, bool &, Si7210::MagField_t&magField)
+bool Ah1383::loop(unsigned long now, bool &rain, Si7210::MagField_t&magField)
 {
-    readMode = false;
+    if (readMode)
+        DoReadMode(now, magField);    
     auto v = digitalRead(ROCKER_INPUT_PIN);
     if (v)
         magField = -1;
     else
         magField = 1;
-    if (readMode)
-        DoReadMode(now, magField);
     return false;
 }
 
@@ -1081,7 +1080,7 @@ namespace {
     bool MonitorRockerInput(unsigned long now)
     {   // The AH1383 on the old board. 
         bool AH1383Active = digitalRead(ROCKER_INPUT_PIN) == LOW;
-        bool ret = AH1383Active == prevSentMagnetClose;
+        bool ret = AH1383Active != prevSentMagnetClose;
         prevSentMagnetClose = AH1383Active;
         return ret;
     }
