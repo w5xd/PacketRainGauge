@@ -40,7 +40,7 @@
 #define NEAR_THRESHOLD(x) (x)/6
 
 #define REVISION "REV08"
-#define PCB_REV_NUMBER 3 // Sketch supports versions 2 or 3 only
+#define PCB_REV_NUMBER 2 // Sketch supports versions 2 or 3 only
 
 // Only one of the following sensors may be defined
 #define USE_AH1383
@@ -1014,10 +1014,14 @@ bool Pcb3Si7210::loop(unsigned long now, bool &rainActivated, Si7210::MagField_t
 // Ah1383 methods ***********************************************************
 int16_t Ah1383::toggleOutputSense()
 {
+#if EXPERIMENTAL_AH1383_ON_PCBV2==0
     auto v = digitalRead(SENSOR_INTERRUPT_INVERT_PIN);
     v = (v == HIGH) ? LOW : HIGH;
     digitalWrite(SENSOR_INTERRUPT_INVERT_PIN, v);
     return v;
+#else
+    return 0;
+#endif
 }
 
 void Ah1383::DoReadMode(unsigned long now, Si7210::MagField_t magField)
@@ -1031,12 +1035,12 @@ void Ah1383::DoReadMode(unsigned long now, Si7210::MagField_t magField)
     else
     {
         TimeOfWakeup = now;
-        auto v = digitalRead(RC_RLY_INTERRUPT_PIN);
+        bool v = digitalRead(ROCKER_INPUT_PIN) != LOW;
+        bool w = digitalRead(SENSOR_INTERRUPT_INVERT_PIN) != LOW;
         Serial.print(F("Int="));
-        Serial.print(v);
+        Serial.print(v ? 1 : 0);
         Serial.print(F(" Rocker="));
-        v = digitalRead(ROCKER_INPUT_PIN);
-        Serial.print(v);
+        Serial.print((v^w) ? 1 : 0);
         Serial.print(F(" Magfield: "));
         Serial.println(magField);
     }
@@ -1049,13 +1053,14 @@ bool Ah1383::isInterrupting()
 
 bool Ah1383::loop(unsigned long now, bool &rain, Si7210::MagField_t&magField)
 {
-    if (readMode)
-        DoReadMode(now, magField);    
-    auto v = digitalRead(ROCKER_INPUT_PIN);
-    if (v)
+     bool v = digitalRead(ROCKER_INPUT_PIN) != LOW;
+    bool w = digitalRead(SENSOR_INTERRUPT_INVERT_PIN) != LOW;
+    if (v ^ w)
         magField = 0;
     else
-        magField = -1;
+        magField = -1; // this part triggers on the SOUTH pole (negative polarity, by convention)
+   if (readMode)
+        DoReadMode(now, magField);    
     return false;
 }
 
