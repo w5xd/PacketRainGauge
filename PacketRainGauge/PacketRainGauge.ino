@@ -40,7 +40,7 @@
 #define NEAR_THRESHOLD(x) (x)/6
 
 #define REVISION "REV08"
-#define PCB_REV_NUMBER 2 // Sketch supports versions 2 or 3 only
+#define PCB_REV_NUMBER 3 // Sketch supports versions 2 or 3 only
 
 // Only one of the following sensors may be defined
 #define USE_AH1383
@@ -1053,9 +1053,9 @@ bool Ah1383::loop(unsigned long now, bool &rain, Si7210::MagField_t&magField)
         DoReadMode(now, magField);    
     auto v = digitalRead(ROCKER_INPUT_PIN);
     if (v)
-        magField = -1;
+        magField = 0;
     else
-        magField = 1;
+        magField = -1;
     return false;
 }
 
@@ -1070,13 +1070,19 @@ namespace {
             {
                 delay(1); // give ROCKER_INPUT_PIN time to respond
                 if (digitalRead(ROCKER_INPUT_PIN) != LOW)
-                     return true; // normally this happens with j == 0
+                {
+                    auto prev = prevSentMagnetClose;
+                    prevSentMagnetClose = os == HIGH;
+                    return prev ^ prevSentMagnetClose; // normally this happens with j == 0
+                }
             }
+            // With PCB3 and AH1383, getting here means there is a hardware problem
+            Serial.println(F("Oops: changing SENSOR_INTERRUPT_INVERT_PIN output did not change ROCKER_PIN_INPUT"));
             TimeOfWakeup = now; // extend sleep timer
         }  
         return false;
     }
-#else
+#else // Experimental only
     bool MonitorRockerInput(unsigned long now)
     {   // The AH1383 on the old board. 
         bool AH1383Active = digitalRead(ROCKER_INPUT_PIN) == LOW;
