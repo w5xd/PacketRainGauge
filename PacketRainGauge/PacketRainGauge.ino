@@ -40,7 +40,7 @@
 #define NEAR_THRESHOLD(x) (x)/6
 
 #define REVISION "REV08"
-#define PCB_REV_NUMBER 2 // Sketch supports versions 2 or 3 only
+#define PCB_REV_NUMBER 3 // Sketch supports versions 2 or 3 only
 
 // Only one of the following sensors may be defined
 #define USE_AH1383
@@ -377,9 +377,11 @@ void setup()
         FarThreshold = temp;
     EEPROM.get(static_cast<uint16_t>(EepromAddresses::PACKET_RAINGAUGE_SIGNED), SignedThreshold);
  
+#if defined(USE_S7210)
     Serial.print("Theshold Near="); Serial.println(NearThreshold);
     Serial.print("Theshold Far="); Serial.println(FarThreshold);
     Serial.print("Theshold Signed="); Serial.println((int)SignedThreshold);
+#endif
 
     tmp175.startReadTemperature();
     Serial.println("Setup complete");
@@ -726,7 +728,7 @@ namespace {
             power_timer0_enable(); // delay() requires this
             pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
             digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
-            delay(10); // Charge the 1uF
+            delay(10); // Charge the Cap (1uF to 10uF)
             pinMode(TIMER_RC_CHARGE_PIN, INPUT);
             cli();
             power_timer0_disable(); // timer0 powered down again
@@ -1016,8 +1018,7 @@ int16_t Ah1383::toggleOutputSense()
 {
 #if EXPERIMENTAL_AH1383_ON_PCBV2==0
     auto v = digitalRead(SENSOR_INTERRUPT_INVERT_PIN);
-    v = (v == HIGH) ? LOW : HIGH;
-    digitalWrite(SENSOR_INTERRUPT_INVERT_PIN, v);
+    digitalWrite(SENSOR_INTERRUPT_INVERT_PIN, v == LOW);
     return v;
 #else
     return 0;
@@ -1048,14 +1049,13 @@ void Ah1383::DoReadMode(unsigned long now, Si7210::MagField_t magField)
 
 bool Ah1383::isInterrupting()
 {
-    return digitalRead(ROCKER_INPUT_PIN) == LOW;
+    return (digitalRead(ROCKER_INPUT_PIN) == HIGH) ^ (digitalRead(SENSOR_INTERRUPT_INVERT_PIN) == HIGH);
 }
 
 bool Ah1383::loop(unsigned long now, bool &rain, Si7210::MagField_t&magField)
 {
-     bool v = digitalRead(ROCKER_INPUT_PIN) != LOW;
-    bool w = digitalRead(SENSOR_INTERRUPT_INVERT_PIN) != LOW;
-    if (v ^ w)
+    bool v = digitalRead(ROCKER_INPUT_PIN) != LOW;
+    if (v)
         magField = 0;
     else
         magField = -1; // this part triggers on the SOUTH pole (negative polarity, by convention)
@@ -1068,13 +1068,13 @@ namespace {
 #if EXPERIMENTAL_AH1383_ON_PCBV2==0
     bool MonitorRockerInput(unsigned long now)
     {   // if magnetic sensor interrupt is active, switch it to its other sense
-        if (digitalRead(ROCKER_INPUT_PIN) == LOW)
+        if (magSensor.isInterrupting())
         { /* I only have one job under this funnel, and I'm going to do it.*/
             auto os = magSensor.toggleOutputSense();
             for (int j = 0; j < MAX_WAIT_FOR_TOGGLE_MSEC; j++)
             {
                 delay(1); // give ROCKER_INPUT_PIN time to respond
-                if (digitalRead(ROCKER_INPUT_PIN) != LOW)
+                if (!magSensor.isInterrupting())
                 {
                     auto prev = prevSentMagnetClose;
                     prevSentMagnetClose = os == HIGH;

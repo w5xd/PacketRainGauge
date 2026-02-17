@@ -10,6 +10,7 @@
 #define USE_SERIAL
 #define TELEMETER_BATTERY_V
 #define REVISION "REV01"
+#define PCB_REV_NUMBER 3 // Sketch supports versions 2 or 3 only
 
 
 namespace {
@@ -17,8 +18,14 @@ namespace {
     const int BATTERY_PIN = A0; // digitize (fraction of) battery voltage
     const int TIMER_RC_CHARGE_PIN = 8; // sleep uProc using RC circuit on this pin
     const int RC_RLY_INTERRUPT_PIN = 3;
-    const int RC_STATUS_PIN = 16;   // only on REV02 of the PCB
+ #if PCB_REV_NUMBER >= 3
+    const int RC_STATUS_PIN = 17;   // not used, but on REV02 of the PCB
+    const int ROCKER_INPUT_PIN = 16;
+#elif PCB_REV_NUMBER <= 2   // these pin assignments are reversed on REV02 vs REV03
+    const int RC_STATUS_PIN = 16;
     const int ROCKER_INPUT_PIN = 17;
+#endif
+   const int SENSOR_INTERRUPT_INVERT_PIN = 7;
 
     bool enableSerial = true;
    
@@ -39,7 +46,7 @@ void printPins()
     Serial.println();
     Serial.print("Interrupt 3 is ");
     Serial.println(digitalRead(RC_RLY_INTERRUPT_PIN) == LOW ? "active" : "inactive");
-    Serial.print("Hall effect interrupt (D17)) is ");
+    Serial.print("Hall effect interrupt is ");
     Serial.println(digitalRead(ROCKER_INPUT_PIN) == LOW ? "active" : "inactive");
     Serial.print("RC_STATUS_PIN is ");
     Serial.println(digitalRead(RC_STATUS_PIN) == HIGH ? "active" : "inactive");
@@ -52,12 +59,15 @@ void setup()
     enableSerial = true;
     Serial.begin(SERIAL_PORT_BAUDS);
     delay(100);
-    Serial.println("Test Interrupt " REVISION);
+    Serial.print("Test Interrupt " REVISION  " PCB:");
+    Serial.println(static_cast<int>(PCB_REV_NUMBER));
     Serial.println(" ready");
 #endif
 
     pinMode(RC_RLY_INTERRUPT_PIN, INPUT);
     pinMode(ROCKER_INPUT_PIN, INPUT_PULLUP);
+    pinMode(SENSOR_INTERRUPT_INVERT_PIN, OUTPUT);
+    digitalWrite(SENSOR_INTERRUPT_INVERT_PIN, digitalRead(ROCKER_INPUT_PIN)); 
 
 #if defined(TELEMETER_BATTERY_V)
     ResetAnalogReference();
@@ -136,22 +146,20 @@ void loop()
     }
 #endif
 
-   
-
     if (now - TimeOfWakeup > ListenAfterTransmitMsec)
     {	// go to sleep. with R1/C1 as specified will be about 100 seconds
         TransmittedSinceSleep = false;
         pinMode(TIMER_RC_CHARGE_PIN, OUTPUT);
         digitalWrite(TIMER_RC_CHARGE_PIN, HIGH);
         printPins();
+        digitalWrite(SENSOR_INTERRUPT_INVERT_PIN, digitalRead(ROCKER_INPUT_PIN)); 
         SleepTilNextInterrupt();
         printPins();
         TimeOfWakeup = millis();
         ListenAfterTransmitMsec = NormalListenAfterTransmit;
 
     }
-
-   
+  
 }
 
 #if !defined(SLEEP_WITH_TIMER2)
