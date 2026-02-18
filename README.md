@@ -173,16 +173,17 @@ Mouser <a href='https://www.mouser.com/Tools/Project/Share?AccessID=1e16e65a5d'>
 
 <h3>Si7210 end-of-support and the AH1383</h3>
 Silicon Labs has announced end of support for the Si7210. The Diodes Incorporated AH1383
-is supported as a substitute on the PCB and sketc. It solders onto the same pads as the Si7210, except
-the SDA/SCL lines for I2C are not connected.
-AS OF THIS WRITING, THE AH1383 DESIGN HAS NOT BEEN BUILT NOR TESTED.
+is supported as a substitute on the PCB and sketch. It solders onto the same pads as the Si7210, except
+the SDA/SCL lines for I2C have no connection to the AH1383.
 The AH1383 happens to fit on the same solder pads as the si7210.
-Its active low output is on the same pin as the Si7210 Alert, and
-indicates when the magnetic field applied
-exceeds its threshold. 
+
 
 <h3>PCB considerations</h3>
 Mount the Arduino directly to the PCB without headers. 
+To ensure the pads on the Arduino do not connect to the vias on the PCB, cut a piece
+of paper roughly .3" wide and 1" long. Insert this paper as an insulator between
+the Pro Mini and the PCB while soldering header terminals between the PCB and
+the Arduino. It may be left in place or pulled out after soldering
 
 <p align='center'><img src='PCB/IMGP2912-v.jpg' alt='PCB top'/></p>
 
@@ -203,7 +204,7 @@ solder them one pin at a time.
 The PCB circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
 
 The hall effect sensor is mounted to the <i>bottom</i> of the PCB. (REV01 shown, later revisions
-are similar nn this bottom view.)
+look similar.)
 <p align='center'><img src='PCB/IMGP2913-v.jpg' alt='PCB bottom'/></p>
 This is the only part on the bottom.
 I used an SMD oven to mount it first (and nothing else in the oven with it.) After it cooled off, 
