@@ -695,7 +695,11 @@ if (view_as_assembled != 0)
       }
     else if (view_as_assembled == 4)
       { // orient for 3D print
-        if (show_base) translate([0, 0, base_disk_thickness])base();
+        translate([0, 0, base_disk_thickness])
+        {
+          if (show_base) base();
+          if (show_base_supports) base_supports();
+        }
         translate([0, -140, 46])
         rotate([90,0])
         if (show_cellAACover) 
