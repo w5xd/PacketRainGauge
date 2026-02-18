@@ -1,11 +1,11 @@
 # Packet Rain Gauge
 
 This design is for a device that telemeters a packet when a magnet approaches, and
-again when it retreats from a hall effect sensor model Si7210. It consists
+again when it retreats from a hall effect sensor. It consists
 of a Printed Circuit Board (PCB) design, an Arduino sketch, and two variations on a funnel
 that catches rain. One variant is a retrofit to install in a discarded rain gauge funnel
 from an Oregon Scientific RGR126N Wireless Rain Gauge. If you don't 
-have an RGR126N to retrofit, there is included  a 3D printable outdoor untit, which I designed
+have an RGR126N to retrofit, there is included  a 3D printable outdoor unit, which I designed
 as a remix of this 
 <a href='https://www.thingiverse.com/thing:4725413'>thingiverse rain gauge</a>.
 
@@ -17,6 +17,7 @@ transmissions from this rain gauge. Or you derive your own design from the sourc
 <h3>3D Print the Outdoor Assembly</h3>
 The CAD directory in this repo has 3D 
 models for the parts needed to all the outdoor parts.
+<p><img src='Exploded3Dprint.png' alt='Exploded3Dprint.png'/></p>
 STL files are downloadable from the <a href='https://www.thingiverse.com/thing:7052595'>thingiverse 7052595 posting of this remix</a>. 
 All the STLs can be regenerated (or modified to your liking) using a combination of
 OpenSCAD and FreeCAD. Each is open sourced and free.
@@ -36,7 +37,7 @@ The parts designed with FreeCAD are:
 <li><code>Placement-sensor enclosureBody002</code></li>
 </ul>
 
-The PCB enclosure parts need to geometrically mate with both the Pluviometer-base, designed in OpenSCAD,
+The PCB enclosure parts geometrically mate with both the Pluviometer-base, designed in OpenSCAD,
 and the printed circuit board outline and hole pattern, which is available as a STEP model. The motivation for using FreeCAD
 is that it can be configured to create a model that itself depends on both the OpenSCAD model of the base and bucket,
 and the STEP model of the PCB. While the
@@ -67,13 +68,12 @@ to the relay
 as the rocker passed top dead center
 in both directions, which means the rocker was moving relatively quickly as the relay sensed it.  
 
-The
-Si7210 hall effect magnetic sensor is used in this design instead of a reed relay. The Si7210
-senses at 5 times per second which is a little slow to
-reliably detect fast passage of the magnet through top dead center. However, the Si7210 can
+A hall effect magnetic sensor is used in this design instead of a reed relay. The Si7210
+version of the PCB, sketch, and sensor can
 easily be programmed to separately detect the arrival and the departure of the magnet from
-proximity to the sensor. This design does that. It positions its sensor
-in close alignment with the rocker at its resting position with one
+proximity to the sensor. (A non-programmable AH1383 sensor can be substituted.)
+The geometric desgin positions the sensor
+in close alignment with the rocker <b>at its resting position</b> with one
 cup down&mdash;the left one in the photo above. Its Arduino
 sketch is programmed to separately report the arrival and departure of the rocker, sending a packet for
 each. The new magnet is mounted in the same recess in the rocker as the old magnet. 
@@ -82,16 +82,15 @@ opposed to 0.3g on my scale, so a calibration check is in order before putting i
 The result is this design sends packets at (almost) the same rate per volume of rainfall
 as the old one, just not quite at the exact same rocker positions.
 
-
-The sensor manufacturer publishes a detailed discussion about magnets&mdash;including details
-about this exact scenario: replacing a reed relay with an Si7210&mdash;about how the
+Silicon Labs publishes a detailed discussion about magnets&mdash;including details
+about this exact scenario: replacing a reed relay with a hall effect sensor&mdash;about how the
 magnet axis and sensor geometry are related: 
 <a href='https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf'>
 https://www.silabs.com/documents/public/application-notes/an1018-si72xx-sensors.pdf<a>.
 A K&J Magnetics B422 magnet conveniently matches the original magnet's dimensions to
 fit in the original rocker, and has its
 poles aligned so that its
-pole axis as required to penetrate the Si7210 when mounted in the original rocker.
+pole axis as required to penetrate the IC sensor when mounted in the original rocker.
 
 The original water tight
 battery compartment is retained, but after removing the PCB that shares the
@@ -118,8 +117,8 @@ to the replacement PCB. This design can use either
 alkaline or lithium cells. 
 </ul>
 
-<h3>The Arduino sketch</h3>
-The sketch sends a packet to the Packet Gateway every time the 
+<h2>Arduino sketch</h2>
+The <a href='PacketRainGauge/PacketRainGauge.ino'>sketch</a> sends a packet to the Packet Gateway every time the 
 magnet on the rocker arm either arrives at, or departs from the
 sensor. The message
 packet also contains a battery voltage measurement, the TMP175
@@ -132,52 +131,60 @@ monitoring the condition of the funnel assembly. Direct
 sunlight on the funnel makes its value not representative
 of ambient air temperature because the funnel must be 
 mounted in the open to be useful as a rain gauge.
-
+<br/><br/>
 The gateway's processing of the rainfall messages is not part of this
 repository. See the repository at https://github.com/w5xd/diysha for
 an example. In that project, the receipt of rainfall packets writes a
 text file that, in turn, can be read by the "bins" feature in <a href='http://www.gnuplot.info'>gnuplot</a>.
 
 <h2> Construction</h2>
-
+Both variations use the same electronics and custom PCB.
 The <a href='https://www.sparkfun.com/products/11114'>Arduino Pro Mini</a> requires the 
-following PCB options to be made in order to work 
+following of its hardware options to be made in order to work 
 in this project:
 <ul>
-<li>The 3.3V version of the Pro Mini is <b>required</b> as opposed to the 5V version.
+<li>The 3.3V version of the Pro Mini is <b>required</b> (<i>i.e.</i> not the 5V version.)
 <li>Jumper SJ1 (top side, close to the GND pad) must be desoldered to remove the red power LED's power drain.
 <li>The bottom side i2c pullup positions, R1 and R3, can each have a 4.7K 
 resistor installed. Two SMD 0603 size resistors just fit inside a hole
-in the PCB designed to clear them. Alternatively, REV02 of the PCB has positions for SMD
-0804  pull up resistors that are not quite so tiny.
-<li>The 330 ohm resistor just inside pins D11 and D12 can be removed (or cut with a diagonal 
-cutter.) This
-disables the green LED to prevent its battery drain and load on the SCK line. The LED is
-almost never turned on by the sketch, so removing it saves very little.
+in the PCB designed to clear them. Alternatively, REV02 and higher of the PCB has positions for SMD
+0805  pull up resistors that are not quite so tiny.
 </ul>
 
-PCB Parts
+PCB Parts for PCB version 3 and later
 <ul>
 <li>Sparkfun Arduino <a href='https://www.sparkfun.com/arduino-pro-mini-328-3-3v-8mhz.html'>Pro Mini</a> in 3.3V
 <li>Sparkfun <a href='https://www.sparkfun.com/rfm69hcw-wireless-transceiver-915mhz.html'>
 RFM69HCW</a></li>
-<li><a href='https://www.silabs.com/documents/public/data-sheets/si7210-datasheet.pdf'>Si7210-B-04-IVR</a> I2C Hall effect sensor in SOT-23-5 package</li>
-<li><a href='https://www.ti.com/lit/ds/symlink/sn74hcs27.pdf'>SN74HCS27DR</a> Triple 3-Input NOR Gates with Schmitt-Trigger Inputs in 14 SOIC package</li>
+<li><a href='https://www.silabs.com/documents/public/data-sheets/si7210-datasheet.pdf'>Si7210-B-04-IVR</a> I2C Hall effect sensor in SOT-23-5 package or...<br/>
+<a href='https://www.mouser.com/datasheet/3/175/1/AH1381_AH1382_AH1383.pdf'>Diodes Incorporated AH1383</a> in SOT-23-5</li>
+<li><a href='https://assets.nexperia.com/documents/data-sheet/74HC_HCT1G86.pdf'>SN74HC1G86</a> Single 2 input XOR in SOT753 package</li>
+<li><a href='https://assets.nexperia.com/documents/data-sheet/74HC_HCT1G02.pdf'>SN74HC1G02</a> Single 2 input NOR in SOT753 package</li>
+<li><a href='https://assets.nexperia.com/documents/data-sheet/74HC_HCT1G14.pdf'>SN74HC1G14</a> Single Schmidt inverter SOT753 package</li>
 <li><a href='https://www.ti.com/lit/ds/symlink/tmp175.pdf'></a>TMP175 temperature sensor in 8 SOIC package
 <li>10M resistor size SMD 1206
 <li>2.7K resistor size SMD 1206
 <li>2 by 4.7K resistors size SMD 0805
-<li>3 by 10uF 10V tantalum in SMD 1206
+<li>3 by 10uF 10V tantalum or ceramic in SMD 1206
 <li>.1uF ceramic 16V in SMD1206
 </ul>
 
-Mouser <a href='https://www.mouser.com/Tools/Project/Share?AccessID=8fd74ac259'>Project</a> referencing all the above PCB parts.
+Mouser <a href='https://www.mouser.com/Tools/Project/Share?AccessID=1e16e65a5d'>Project</a> referencing all the above PCB parts.
+
+<h3>Si7210 end-of-support and the AH1383</h3>
+Silicon Labs has announced end of support for the Si7210. The Diodes Incorporated AH1383
+is supported as a substitute on the PCB and sketc. It solders onto the same pads as the Si7210, except
+the SDA/SCL lines for I2C are not connected.
+AS OF THIS WRITING, THE AH1383 DESIGN HAS NOT BEEN BUILT NOR TESTED.
+The AH1383 happens to fit on the same solder pads as the si7210.
+Its active low output is on the same pin as the Si7210 Alert, and
+indicates when the magnetic field applied
+exceeds its threshold. 
 
 <h3>PCB considerations</h3>
 Mount the Arduino directly to the PCB without headers. 
 
 <p align='center'><img src='PCB/IMGP2912-v.jpg' alt='PCB top'/></p>
-
 
 Its important to:
 <ul>
@@ -195,7 +202,8 @@ solder them one pin at a time.
 
 The PCB circuit diagram is <a href='PCB-circuit.pdf'>here</a>.
 
-The Si7210 is mounted to the <i>bottom</i> of the PCB. 
+The hall effect sensor is mounted to the <i>bottom</i> of the PCB. (REV01 shown, later revisions
+are similar nn this bottom view.)
 <p align='center'><img src='PCB/IMGP2913-v.jpg' alt='PCB bottom'/></p>
 This is the only part on the bottom.
 I used an SMD oven to mount it first (and nothing else in the oven with it.) After it cooled off, 
@@ -203,18 +211,16 @@ I flipped the board over
 and used the oven again to bake the top side SMD parts. While the ExpressPCB process provides
 a solder paste mask in its gerber files, I found it easier just to use a very small stick of some sort
 (a 0.050" allen key, for example) to dab tiny bits of paste on the solder pads.
-
 The RFM69 is documented to be
 oven-safe, but I have destroyed at least one (maybe not because of the oven?) and its
 easy enough to hand solder its 100 thou wide solder pads.
-
+<br/><br/>
 Setting up the Arduino requires programming the part, and also requires 
 serial port commands to configure the radio parameters.  Connecting to the Pro Mini's
 serial port is a bit of a trick because the enclosure cannot accommodate a standard
 0.100" header soldered onto the board. One option is to solder on a header, program
 the sketch, set its parameters through the same serial port header,
  and then cut the header off to install the Arduino in its enclosure.
-
 Alternatively, the PCB has
  a hole pattern that enables  a pogo adapter to access either 
 the standard ISP
@@ -224,9 +230,9 @@ Arduino's serial port.
 <p align='center'><img alt='programming-jig' src='programming-jig.jpg'/></p>
 
 The serial port pin layout on this PCB is 3 extra pins alongside the standard 6-pin ISP header.
- I used a
-<a href=''>SparkFun ISP Pogo Adapter</a> with an FTDI USB serial breakout
-to both program the sketch onto this PCB, and to set its configurable parameters. Be sure
+I custom assembled a <a href=''>SparkFun ISP Pogo Adapter</a> with an FTDI USB serial breakout
+to access the Arduino serial port this PCB. It can be used both to program
+the CPU, and to set its configurable parameters. Be sure
 you wire the 3.3VDC to the pogo! The RFM69 will be destroyed if you 
 apply 5VDC.
 
@@ -257,31 +263,28 @@ jumper directly on the break out between its ground and CTS.
 
 A Pogo adapter wired as above to a serial break out can be used both to
 program the Arduino, and to use a terminal application for serial port
-commands to configure the packet radio parameters.
-
-A Pogo adapter can also be used posititioned to its standard wire assignments
-to program the Arduino, but the radio parameters
+commands to configure the packet radio parameters. A different Pogo 
+adapter can also be used posititioned to its standard wire assignments
+to program the Arduino on its ISP port, but the radio parameters
 can only be configured through the serial port.
 
-<h3>Enclosure</h3>
-Both enclosure designs, the retrofit and the full outdoor unit, print as two parts. 
-The retrofit base has three mounting holes matching the original rocker-mounted PCB. 
-The other part, for either design, has three holes
-for wires: one each for the radio antenna, ground, and 3.3V. 
-
-
+<h3>Enclosures</h3>
+Both PCB enclosure designs, the retrofit and the full outdoor unit, have a two
+part 3D printable shell to house the custom PCB. 
+For the retrofit, its base has three mounting holes matching the original rocker-mounted PCB. 
+For either design, there are three holes
+for these wires: one each for the radio antenna, ground, and 3.3V. 
 Once the Arduino is configured, use a silicon sealant
 on the joints between the base and cover, and also to seal the wire holes.
 Consider the enclosure as disposable. If you use a silicon rubber sealant,
 you might be able to use a box cutter to open it if you need to reprogram
 the Arduino. But plan to 3D print a replacement enclosure should you ever
 open it.
- 
 On the retrofit, I substituted #4 brass wood screws for the original steel screws that held
 the PCB inside the funnel assembly, because I suspected that the strong
 magnet attraction on them might chage the mechanical balance of the rocker
  and thus change the calibration.
-
+<br/><br/>
 The full outdoor unit needs the following commercially available parts to house
 the dual cell AA battery:
 <ol>
@@ -291,8 +294,7 @@ with the width. The 12BH222 is comparatively narrow, and
 just fits inside the AA holder 3D printed part.
 <li>Quantity two by AA cells. Lithium cells are preferred. They should last over 12 months.
 <li> A <a href='https://www.kjmagnetics.com/proddetail.asp?prod=B422'>K&J Magnetics B422 neodymium magnet</a>.
-The same part as the retrofit, above. Its
-Note there is a required orientation of the magnet that takes some care when
+The same part as the retrofit, above. Note there is a required orientation of the magnet that takes some care when
 you glue it. See <a href='#MAGNET_ORIENTATION'>below</a>.
 <li> <a href='https://www.mcmaster.com/catalog/131/4021/2418T16'>3/32" width, Dash Number 141 O Ring (2 1/2" OD)</a>
 The O ring seals the battery compartment against water.
@@ -302,79 +304,29 @@ The O ring seals the battery compartment against water.
 </ol>
 
 When assembling the two enclosure halves together (Body001 and Body002) with the PCB in between as a 
-sandwich, shoud not be possible to squeeze them tightly enough to permanently actuate the RESET switch
+sandwich, it shoud not be possible to squeeze them tightly enough to permanently actuate the RESET switch
 built into the Sparkfun Arduino Pro Mini. But check it. It won't telemeter and it will run
 down the battery in about 24 hours.
 
 <h3 id="MAGNET_ORIENTATION">Magnet Orientation</h3>
 The B422 magnet's 1/4" dimension fits into the rocker mount in the obvious 1/4" slot dimension. 
-But that geometry makes
-four 1/8" sides to the magnet that might face the sensor and only two of them work!
-(Well, it will probably work with the "wrong" orientation anyway because the hall effect sensor is very
-good at detecting near versus far if any field lines cross it at all, and they do in this funnel.)
-The magnet has two opposing 1/8" faces 
-that are optimum to face
-the sensor
- (the ones with the poles) and the other two 1/8" faces are far less effective to sense! Another
-magnet with known poles helps figure out which face is right: the face that sticks to 
-the other magnet IS one of the poles. Here
-are some more hints: <a href='https://www.kjmagnetics.com/products.asp?cat=163'>
-https://www.kjmagnetics.com/products.asp?cat=163</a>.  The B422 may be mounted with either
-its North pole or South pole facing the PCB. (The North pole orientation will permanently give positive
-close-in
-readings in the magnetic sensor, the other will give negative.) You can also use the assembled
-PCB and sketch to read out the magnetic field with the magnet close. When oriented properly,
-it will read the maximum magnitude (either + or -, either pole axis works
-fine with the sketch) about 16000. Use the sketch's <code>ReadModeForSeconds</code> command to
-make the magnetic field print out continuously. Hold the magnet directly over the Si7210 and then
-slide it only 1/4" or so in all directions. If you have a pole directly facing the sensor (the 
-desired orientation) the sign will not change on the magnetic field. If you have and edge toward
-the sensor, the sign will change. (Why a sign change? if the N/S poles are sideways toward the
-sensor, moving it slightly will put the N and S alternately nearer to the sensor.)
-<h3>Sketch parameter setup</h3>
-This advice applies to both physical arrangements, the Oregon Scientific funnel retrofit, and 
-3D printable design presented here. 
-<ul><li>Mount the magnet with either its N
-or S pole facing the sensor as described in the previous section.</li>
-<li>The recommended Si7210 interrupt threshold and hysteresis settings are a relatively
-low magnitude (1500 out of a maximum of 16000) and small hysteresis (8 out of 1792). The commands
-are:
-<pre>
-<code>SetSWOP 0x64
-SetSWHYST 0
-</code></pre></li>
-<li>The Si7210 interrupts per the previous item, but the chip's interrupt output does not
-directly correspond to the magnet position. The sketch, therefore, is coded to originate
-a notification of a rocker move based on the magnetic field going outside the range
-specified as below. 
-<pre>
-If the North pole faces the sensor:
-<code>SetNearThreshold 1500
-SetFarThreshold 0
-SetSignedThreshold 0
-</code>If the South pole faces the sensor:<code>
-SetNearThreshold -1500 <i>Note it is negative</i>
-SetFarThreshold 0
-SetSignedThreshold 1
-</code>
-</pre>
-The NearThreshold and FarThreshold are signed, and need to be different based on the
-magnet orientation. The OP and HYST values in the Si7210 are not signed, and do not
-depend on the magnet orientation.
-</li>
-</ul>
-The sketch, per the above settings, is waked up by any motion of the magnet around the value 1500,
-and then polls the magnetic field looking for it to go outside the range NearThreshold and FarThreshold.
+But that constraint still leaves
+four 1/8" sides of the magnet that might face the sensor. <b>Only one works. The
+South pole of the magnet must face the sensor!</b>
+(well, the Si7210 can be programmed to work if the North pole is instead facing
+the sensor.) The magnet must be chosen and positioned to exceed the turn ON threshold
+of the sensor.
+<a href='MagnetOrientation.md'>See details here.</a>
+
 <h3>How many signals per inch of rain?</h3>
 The original Oregon Scientific part, by my observation, sends an update every 1mm of rainfall. In the retrofit,
 I measured the device to send an update about every 1.2mm of rainfall. I attribute the difference
 to the extra weight of the B422 magnet compared to the original (as nothing else has changed.)
-
 The full outdoor unit, as <a href='https://www.thingiverse.com/thing:4725413'>documented by its original designer</a> 
 clicks every 0.15mm of rain. As of the latest update to this repository, a 1/4" hex weighting nut is added
 to the rocker to make the water volume more consistent, and to require more water to rock it. 
 I measure 0.38mm of rain per click. Your mileage may vary. 
-
+<br/><br/>
 What is the highest rainfall rate that can be telemetered? There are at least two different
 parts of this design that might limit the highest rate: (a) water pouring through the funnel
 so fast that it rocks the bucket by force of the pouring water instead of the designed behavior, which
@@ -389,5 +341,5 @@ The actual limit is likely much faster than that.  A bucket dump every 3 seconds
 corresponds to a rainfall rate of about 7 inches per hour. 
 If your raingauge
 experiences more than 7 inches per hour and you are in the vicinity, then you have more serious problems than 
-whether the raingauge can keep up.
+whether your raingauge can keep up.
 
