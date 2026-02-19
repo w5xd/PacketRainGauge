@@ -34,12 +34,12 @@
 #define TELEMETER_BATTERY_V
 
 // because the LED is on the SPI clock (SPK) line, access to the RFM69 flashes it dimly
-//#define FLASH_LED_ON_WAKEUP // for debugging. flashes it longer
+//#define FLASH_LED_ON_STARTUP // for debugging. flashes it longer
 
 #define FAR_THRESHOLD(X) (X)/32
 #define NEAR_THRESHOLD(x) (x)/6
 
-#define REVISION "REV08"
+#define REVISION "REV09"
 #define PCB_REV_NUMBER 3 // Sketch supports versions 2 or 3 only
 
 // Only one of the following sensors may be defined
@@ -60,6 +60,14 @@
 ** happens to come to rest at the stop far away from the magnet.*/
 #define EXPERIMENTAL_AH1383_ON_PCBV2 1 
 #endif
+
+//signed/unsigned arithmetic is involved in timer compares and easy to get wrong
+typedef  decltype(millis()) msec_time_stamp_t;
+typedef  long msec_time_diff_t;
+static_assert(sizeof(msec_time_diff_t) == sizeof(msec_time_stamp_t), "time stamp and time diff must have same precision");
+template <typename D>
+bool TimerCompleted(msec_time_stamp_t now, msec_time_stamp_t started, D interval)
+{ return static_cast<msec_time_diff_t>(now - started) >= static_cast<msec_time_diff_t>(interval);}
 
 class Pcb3Si7210
 {   // The Si7210 is an I2C part that can read mag fields and has various parameters
@@ -261,7 +269,8 @@ namespace {
     bool prevSentMagnetClose;
     bool enableSerial = true;
     bool radioOK = false;
-    auto ReadModeStop = millis();
+    auto ModeStart = millis();
+    uint32_t ModeInterval;
     bool readMode = false;
 }
 
@@ -302,6 +311,18 @@ void setup()
     Serial.print(" key ");
     radioConfiguration.printEncryptionKey(Serial);
     Serial.println(" ready");
+
+#if defined(FLASH_LED_ON_STARTUP)
+        pinMode(LED_BUILTIN, OUTPUT);
+        for (int i = 0; i < 10; i++)
+        {
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(100);
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(100);
+        }
+        pinMode(LED_BUILTIN, INPUT);
+#endif
 
 #if defined(USE_RFM69)
     pinMode(RFM69_CHIP_SELECT_PIN, OUTPUT);
@@ -511,7 +532,8 @@ namespace {
             auto v = static_cast<uint16_t>(strtol(q, 0, 0));
             if (v > 0)
             {
-                ReadModeStop = millis() + 1000 * static_cast<long>(v);
+                ModeStart = millis();
+                ModeInterval = 1000u * v;
                 readMode = true;
             }
             return true;
@@ -625,7 +647,7 @@ void loop()
         return; // not ready. loop() again
 
     if (rainActivated ||
-        (!TransmittedSinceSleep && (now - TimeOfWakeup >= MONITOR_ROCKER_MSEC)))
+        (!TransmittedSinceSleep && TimerCompleted(now , TimeOfWakeup, MONITOR_ROCKER_MSEC)))
     { 
         TransmittedSinceSleep = true; /* Transmit at least once per wakeup. */
         int batt(0);
@@ -670,7 +692,7 @@ void loop()
 #endif
     }
 
-    if (now - TimeOfWakeup > ListenAfterTransmitMsec)
+    if (TimerCompleted(now, TimeOfWakeup, ListenAfterTransmitMsec))
     {	// go to sleep. with R1/C1 as specified will be about 100 seconds
         TransmittedSinceSleep = false;
         if (getOnloopSerialDisable())
@@ -771,13 +793,6 @@ namespace {
             Serial.begin(SERIAL_PORT_BAUDS);
             Serial.println(F("******waked up*******"));
         }
-
-#if defined(FLASH_LED_ON_WAKEUP)
-        pinMode(LED_BUILTIN, OUTPUT);
-        digitalWrite(LED_BUILTIN, HIGH);
-        delay(20);
-        pinMode(LED_BUILTIN, INPUT);
-#endif
 
         tmp175.startReadTemperature();
         magSensor.wakeup();
@@ -881,7 +896,7 @@ namespace {
 
 void Pcb3Si7210::DoReadMode(unsigned long now, Si7210::MagField_t magField)
 {
-    if (now > ReadModeStop)
+    if (TimerCompleted(now, ModeStart, ModeInterval))
         readMode = false;
     else
     {
@@ -1027,7 +1042,7 @@ int16_t Ah1383::toggleOutputSense()
 
 void Ah1383::DoReadMode(unsigned long now, Si7210::MagField_t magField)
 {
-    if (now > ReadModeStop)
+    if (TimerCompleted(now, ModeStart, ModeInterval))
     {
         if (readMode)
             Serial.println(F("Canceling read mode"));
@@ -1058,7 +1073,7 @@ bool Ah1383::loop(unsigned long now, bool &rain, Si7210::MagField_t&magField)
     if (v)
         magField = 0;
     else
-        magField = -1; // this part triggers on the SOUTH pole (negative polarity, by convention)
+        magField = 1; // this part triggers on the SOUTH pole 
    if (readMode)
         DoReadMode(now, magField);    
     return false;

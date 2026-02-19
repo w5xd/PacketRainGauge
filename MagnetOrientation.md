@@ -9,21 +9,21 @@ must face the PCB.
 <br/><br/>
 You can also use the assembled
 PCB and sketch to read out the magnetic field with the magnet close. When oriented properly,
-it will read the maximum negative magnitude about -16000. 
+it will read the maximum negative magnitude about +16000. 
 Use the sketch's <code>ReadModeForSeconds</code> command to
 make the magnetic field print out continuously. Hold the magnet directly over the Si7210 and then
 slide it only 1/8" or so in the 2 directions perpendicular to the magnet.
 If you have a pole directly facing the sensor (the 
 desired orientation) the sign will not change on the magnetic field. If you have a unipolar
-sensor (AH1381) with the correct (South) pole, facing it, stays at -1 at (nearly) equal distances in
+sensor (AH1381) with the correct (South) pole, facing it, stays at +1 at (nearly) equal distances in
 all directions from centered over the sensor. With the wrong pole, it reads out 0 and nothing happens at all
 as you move the magnet away from the center of the sensor.
 If you have an edge toward
 the sensor ("sideways"), the sign will change right where the magnet is centered over the sensor. 
 The AH1383
 version of the sketch also supports the <code>ReadModeForSeconds</code> command, but it
-only reads out -1 (for the magnet "close") and 0 for the magnet "far." You need the magnet
-oriented so its reads -1 on the AH1383 when centered over the sensor.
+only reads out +1 (for the magnet "close") and 0 for the magnet "far." You need the magnet
+oriented so its reads +1 on the AH1383 when centered over the sensor.
 
 <h2>AH1383 thresholds: 45 Gause on, 35 Gause off</h2>
 The Si7210 version of this build is especially useful for experimentation because the sketch can
